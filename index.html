@@ -385,7 +385,8 @@ function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot()))
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
 function mergeState(a, b){
-  const out = {};
+  // Conservar también los campos que esta versión no conoce, para no borrar lo que agregue una versión más nueva
+  const out = Object.assign({}, b, a);
   out.plan = (b.planU || 0) > (a.planU || 0) ? b.plan : a.plan;
   out.planU = Math.max(a.planU || 0, b.planU || 0);
   out.act = ((b.act?.at || 0) > (a.act?.at || 0) ? b.act : a.act) || {id: null, at: 0};
