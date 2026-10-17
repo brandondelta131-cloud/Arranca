@@ -240,7 +240,7 @@ details ol{padding-left:20px;margin:8px 0}
     <p class="muted small">Elige la voz más natural que tenga tu dispositivo. Las mejores dicen <b>Natural</b>, <b>Premium</b>, <b>Mejorada</b> o <b>Siri</b> en el nombre.</p>
     <div id="voicePickers" style="display:grid;gap:10px"></div>
     <details><summary>Cómo conseguir voces que suenan como persona</summary><ol class="small">
-      <li><b>iPhone:</b> Ajustes → Accesibilidad → Contenido leído → Voces. En Inglés, descarga "Ava (Premium)" o "Zoe (Premium)"; en Japonés, "Kyoko (Mejorada)"; en Español (México), "Paulina (Mejorada)". Después cierra y vuelve a abrir Arranca.</li>
+      <li><b>iPhone:</b> Ajustes → Accesibilidad → Contenido leído → Voces. En cada idioma (Inglés, Japonés, Español) <b>toca la voz Mejorada o Premium</b> que descargaste para que quede marcada con ✓. Apple no deja que las páginas web elijan esas voces directamente, así que en Arranca deja <b>"Voz del iPhone (la de Ajustes)"</b>: así usa la que marcaste.</li>
       <li><b>PC:</b> usa Arranca en <b>Microsoft Edge</b>. Trae voces gratis como "Microsoft Aria Online (Natural)", "Nanami Online (Natural)" y "Dalia Online (Natural)", que suenan como una persona real.</li>
     </ol></details>
   </div>
@@ -372,15 +372,15 @@ const DEFAULT_PLAN = {
   ]
 };
 
-let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, lia = null;
+let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, lia = null, voces = null;
 let act = {id: null, at: 0}; // bloque que corre ahora; el servidor no manda recordatorios mientras está fresco
 
 /* ================= Guardado local + sincronización ================= */
 const LKEY = 'arranca-app-v1';
 function localLoad(){
-  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; lia = s.lia || null } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; lia = s.lia || null; voces = s.voces || null } } catch(e){}
 }
-function snapshot(){ return {plan, planU, log, cards, notes, exs, lia, act} }
+function snapshot(){ return {plan, planU, log, cards, notes, exs, lia, voces, act} }
 function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
@@ -391,6 +391,7 @@ function mergeState(a, b){
   out.planU = Math.max(a.planU || 0, b.planU || 0);
   out.act = ((b.act?.at || 0) > (a.act?.at || 0) ? b.act : a.act) || {id: null, at: 0};
   out.lia = ((b.lia?.u || 0) > (a.lia?.u || 0) ? b.lia : a.lia) || null;
+  out.voces = ((b.voces?.u || 0) > (a.voces?.u || 0) ? b.voces : a.voces) || null;
   out.log = {days:{}};
   for (const src of [a.log, b.log]) for (const [d, acts] of Object.entries(src?.days || {})){
     out.log.days[d] ||= {};
@@ -427,7 +428,7 @@ async function sync(){
     for (const r of rows){ Object.assign(nuevo.cards, r.payload?.cards || {}); Object.assign(nuevo.notes, r.payload?.notes || {}) }
     const merged = mergeState(mergeState(snapshot(), nuevo), remote);
     const changedLocal = JSON.stringify(merged) !== JSON.stringify(snapshot());
-    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; lia = merged.lia; act = merged.act;
+    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; lia = merged.lia; voces = merged.voces; act = merged.act;
     try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){}
     if (JSON.stringify(merged) !== JSON.stringify(remote)){
       const { error: e2 } = await sb.from('arranca_state').upsert({user_id: uid, data: merged, updated_at: new Date().toISOString()});
@@ -988,6 +989,9 @@ function fotoLia(file){
 let voices = [];
 const loadVoices = () => { try { voices = speechSynthesis.getVoices() } catch(e){} };
 loadVoices(); try { speechSynthesis.onvoiceschanged = () => { loadVoices(); renderVoices() } } catch(e){}
+// El iPhone entrega la lista de voces tarde y a veces sin avisar: volver a pedirla unos segundos
+let vecesVoces = 0;
+const esperarVoces = setInterval(() => { const n = voices.length; loadVoices(); if (voices.length !== n) renderVoices(); if (++vecesVoces > 10) clearInterval(esperarVoces) }, 700);
 // Prefiere voces neuronales/premium: suenan como persona y no como robot
 function voiceScore(v, lang){
   const l = (v.lang || '').replace('_', '-').toLowerCase(), want = lang.toLowerCase();
@@ -1000,22 +1004,41 @@ function voiceScore(v, lang){
   return s;
 }
 const voicesFor = lang => voices.filter(v => voiceScore(v, lang) >= 0).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
+// "Voz del sistema": no elegir voz, y el dispositivo usa la que marcaste en sus ajustes.
+// En iPhone es la única forma de usar las voces Mejoradas/Premium, porque Safari no las enlista.
+const SISTEMA = '__sistema__';
+const DISPOSITIVO = esIOS ? 'iphone' : 'pc';
 const VKEY = lang => 'arranca-voz-' + lang.slice(0, 2);
+function vozGuardada(lang){
+  const k = lang.slice(0, 2);
+  try { const l = localStorage.getItem(VKEY(lang)); if (l) return l } catch(e){}
+  return voces?.[DISPOSITIVO]?.[k] || (esIOS ? SISTEMA : null);
+}
 function pickVoice(lang){
-  let saved = null; try { saved = localStorage.getItem(VKEY(lang)) } catch(e){}
+  const saved = vozGuardada(lang);
+  if (saved === SISTEMA) return null;
   return voices.find(v => v.name === saved) || voicesFor(lang)[0] || null;
 }
 const VOICE_LANGS = [['en-US', 'Inglés', 'Hello! This is how I will read your English cards.'], ['ja-JP', 'Japonés', 'こんにちは。日本語のカードはこの声で読みます。'], ['es-MX', 'Español', 'Hola. Así te voy a leer las respuestas.']];
 function renderVoices(){
   const box = $('voicePickers'); if (!box) return;
+  if (box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; // no redibujar mientras eliges
   box.innerHTML = VOICE_LANGS.map(([lang, name]) => {
-    const list = voicesFor(lang), cur = pickVoice(lang);
-    const opts = list.map(v => `<option ${cur && v.name === cur.name ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
-    return `<div class="row"><label class="lbl grow">${name}${list.length ? `<select data-vlang="${lang}">${opts}</select>` : '<span class="small">No hay voz en este dispositivo. Descárgala (ver abajo).</span>'}</label>
-      ${list.length ? `<button data-vtest="${lang}">Probar</button>` : ''}</div>`;
-  }).join('');
+    const list = voicesFor(lang), saved = vozGuardada(lang), cur = pickVoice(lang);
+    const sis = `<option value="${SISTEMA}" ${saved === SISTEMA ? 'selected' : ''}>${esIOS ? 'Voz del iPhone (la que elegiste en Ajustes)' : 'Voz del sistema'}</option>`;
+    const opts = list.map(v => `<option value="${esc(v.name)}" ${saved !== SISTEMA && cur && v.name === cur.name ? 'selected' : ''}>${esc(v.name)}${/premium|enhanced|mejorad|natural|neural/i.test(v.name) ? ' ★' : ''}</option>`).join('');
+    return `<div class="row"><label class="lbl grow">${name}<select data-vlang="${lang}">${sis}${opts}</select></label>
+      <button data-vtest="${lang}">Probar</button></div>`;
+  }).join('') + `<p class="muted small">${voices.length} voces encontradas en este dispositivo. Tu elección se guarda en tu cuenta.</p>`;
 }
-$('voicePickers').addEventListener('change', e => { const s = e.target.closest('[data-vlang]'); if (s){ try { localStorage.setItem(VKEY(s.dataset.vlang), s.value) } catch(err){} } });
+$('voicePickers').addEventListener('change', e => {
+  const s = e.target.closest('[data-vlang]'); if (!s) return;
+  const k = s.dataset.vlang.slice(0, 2);
+  try { localStorage.setItem(VKEY(s.dataset.vlang), s.value) } catch(err){}
+  voces = clone(voces || {}); voces[DISPOSITIVO] = {...(voces[DISPOSITIVO] || {}), [k]: s.value}; voces.u = Date.now();
+  persist();
+  s.blur(); renderVoices();
+});
 $('voicePickers').addEventListener('click', e => { const b = e.target.closest('[data-vtest]'); if (b){ const l = VOICE_LANGS.find(x => x[0] === b.dataset.vtest); try { speechSynthesis.cancel() } catch(err){} speak(l[2], l[0], +$('lsRate').value) } });
 function speak(text, lang, rate){
   return new Promise(res => {
