@@ -210,10 +210,31 @@ details ol{padding-left:20px;margin:8px 0}
       <label class="lbl grow">Pausa antes de la respuesta <input type="range" id="lsGap" min="1" max="8" step="1" value="3"></label>
       <label class="lbl grow">Veces por tarjeta <select id="lsRep"><option>1</option><option selected>2</option><option>3</option></select></label>
     </div>
+    <label class="row small"><input type="checkbox" id="lsTutor" style="width:auto" checked> Decir "significa" antes de la respuesta, como un maestro</label>
+    <div class="row"><button id="driveBtn">🚗 Modo manejo</button></div>
     <p class="muted small" id="lsInfo"></p>
-    <p class="muted small">En iPhone, descarga las voces de inglés y japonés en Ajustes → Accesibilidad → Contenido leído → Voces.</p>
+  </div>
+  <div class="card">
+    <h2>Voces</h2>
+    <p class="muted small">Elige la voz más natural que tenga tu dispositivo. Las mejores dicen <b>Natural</b>, <b>Premium</b>, <b>Mejorada</b> o <b>Siri</b> en el nombre.</p>
+    <div id="voicePickers" style="display:grid;gap:10px"></div>
+    <details><summary>Cómo conseguir voces que suenan como persona</summary><ol class="small">
+      <li><b>iPhone:</b> Ajustes → Accesibilidad → Contenido leído → Voces. En Inglés, descarga "Ava (Premium)" o "Zoe (Premium)"; en Japonés, "Kyoko (Mejorada)"; en Español (México), "Paulina (Mejorada)". Después cierra y vuelve a abrir Arranca.</li>
+      <li><b>PC:</b> usa Arranca en <b>Microsoft Edge</b>. Trae voces gratis como "Microsoft Aria Online (Natural)", "Nanami Online (Natural)" y "Dalia Online (Natural)", que suenan como una persona real.</li>
+    </ol></details>
   </div>
 </section>
+
+<div class="modal" id="drive" hidden style="background:var(--bg);place-items:stretch">
+  <div style="display:grid;grid-template-rows:auto 1fr auto;gap:16px;max-width:820px;margin:0 auto;width:100%;padding:24px 0">
+    <p class="muted small" style="text-align:center">Modo manejo · déjalo corriendo antes de arrancar y no toques el teléfono mientras manejas.</p>
+    <div style="display:grid;place-items:center;text-align:center;gap:12px">
+      <div id="drF" style="font:800 clamp(30px,9vw,60px)/1.15 var(--f-display)"></div>
+      <div id="drB" style="font:700 clamp(22px,6vw,40px)/1.2 var(--f-body);color:var(--ok)"></div>
+    </div>
+    <button class="primary" id="drStop" style="font-size:24px;padding:22px">Detener</button>
+  </div>
+</div>
 
 <!-- MÚSICA -->
 <section class="tab" id="t-musica" hidden>
@@ -230,8 +251,17 @@ details ol{padding-left:20px;margin:8px 0}
 <section class="tab" id="t-bloqueo" hidden>
   <div class="card">
     <h2>Bloquea lo que te distrae</h2>
-    <p class="muted small">Una app web no puede bloquear otras apps; eso lo hace tu teléfono. Configúralo una vez y se aplica solo cada día.</p>
-    <details open><summary>iPhone: Tiempo en pantalla + Concentración</summary><ol>
+    <p class="muted small">En la PC ya tienes la extensión del navegador y el vigilante de programas. En el iPhone configúralo una vez con estos pasos.</p>
+    <details open><summary>iPhone: que Instagram, TikTok o YouTube te regresen a estudiar (Atajos)</summary><ol>
+      <li>Abre la app <b>Atajos</b> → pestaña <b>Automatización</b> → <b>+</b> (o "Nueva automatización") → <b>App</b>.</li>
+      <li>Toca <b>Elegir</b> y marca las apps que te distraen: Instagram, TikTok, YouTube, Facebook, X, Netflix y tus juegos. Deja marcado <b>Se abre</b>.</li>
+      <li>Elige <b>Ejecutar inmediatamente</b> y desactiva "Notificar al ejecutar". Toca <b>Siguiente</b> → <b>Nueva automatización en blanco</b>.</li>
+      <li>Agrega la acción <b>Mostrar notificación</b> con el texto: <i>Lía te necesita. Ahora toca estudiar.</i></li>
+      <li>Agrega la acción <b>Abrir URLs</b> con: <b>https://brandondelta131-cloud.github.io/Arranca/</b></li>
+      <li>Toca <b>OK</b>. Desde ahora, cada vez que abras una de esas apps te manda a Arranca con el mensaje de Lía.</li>
+      <li>Como el enlace se abre en Safari, entra una vez en Safari con tu cuenta de Arranca (Ajustes → Entrar) para ver tus tarjetas ahí también.</li>
+    </ol></details>
+    <details><summary>iPhone: Tiempo en pantalla + Concentración</summary><ol>
       <li>Ajustes → Concentración → + → Personalizar → nómbralo "Estudio".</li>
       <li>En "Apps permitidas" deja solo Arranca, Calendario, Teléfono y Safari. Las demás no te notifican.</li>
       <li>Agrega dos horarios: lun–vie de 13:00 a 17:15, y sáb–dom de 10:00 a 17:00.</li>
@@ -243,11 +273,15 @@ details ol{padding-left:20px;margin:8px 0}
       <li>Marca todas las apps que te distraen y pon tus horas de estudio en "Establecer un horario".</li>
       <li>Deja fuera de la lista tu navegador y Arranca.</li>
     </ol></details>
-    <details><summary>Computadora: LeechBlock NG (gratis)</summary><ol>
-      <li>Instala la extensión LeechBlock NG desde la tienda de Chrome o Edge.</li>
-      <li>En "Block Set 1" pon <b>*</b> para bloquear todo y agrega excepciones: tripleten.com, el sitio de Daxus, el de inglés y la dirección de esta app.</li>
-      <li>Pon tus horas de estudio y marca que no se pueda cambiar durante el bloqueo.</li>
+    <details><summary>PC: extensión Arranca Bloqueo (Edge y Chrome)</summary><ol>
+      <li>En Edge abre <b>edge://extensions</b> (en Chrome, <b>chrome://extensions</b>) y activa <b>Modo de desarrollador</b>.</li>
+      <li>Toca <b>Cargar desempaquetada</b> y elige la carpeta <b>Documentos\Arranca\bloqueo-extension</b>.</li>
+      <li>Fija el ícono naranja en la barra. Muestra <b>ON</b> mientras bloquea.</li>
+      <li>Para pausar tienes que pasar 4 avisos de Lía, de 10 segundos cada uno. La pausa dura 15 minutos.</li>
     </ol></details>
+    <details><summary>PC: vigilante de programas</summary>
+      <p class="small">Arranca solo con Windows y, en tus horas de estudio, cierra Discord, Steam, juegos, WhatsApp, Telegram y Spotify. Está en <b>Documentos\Arranca\vigilante</b>: <b>pausar_bloqueo.pyw</b> lo pausa 15 min y <b>quitar_vigilante.pyw</b> lo quita, ambos después de los 4 avisos de Lía. La lista de programas está en <b>config.json</b>.</p>
+    </details>
     <details><summary>Música permitida</summary>
       <p class="small">Usa la pestaña Música de aquí y no necesitas Spotify ni YouTube, que es donde empiezan las distracciones.</p>
     </details>
@@ -432,6 +466,7 @@ $('tabs').onclick = e => {
   document.querySelectorAll('section.tab').forEach(s => s.hidden = s.id !== 't-' + tab);
   if (tab === 'repaso') renderReview();
   if (tab === 'ajustes') renderSettings(true);
+  if (tab === 'escuchar'){ loadVoices(); renderVoices() }
   window.scrollTo(0, 0);
 };
 function goTab(t){ document.querySelector(`#tabs button[data-tab="${t}"]`).click() }
@@ -670,12 +705,41 @@ $('lmClose').onclick = () => $('learnModal').hidden = true;
 /* ================= Voz (TTS) ================= */
 let voices = [];
 const loadVoices = () => { try { voices = speechSynthesis.getVoices() } catch(e){} };
-loadVoices(); try { speechSynthesis.onvoiceschanged = loadVoices } catch(e){}
+loadVoices(); try { speechSynthesis.onvoiceschanged = () => { loadVoices(); renderVoices() } } catch(e){}
+// Prefiere voces neuronales/premium: suenan como persona y no como robot
+function voiceScore(v, lang){
+  const l = (v.lang || '').replace('_', '-').toLowerCase(), want = lang.toLowerCase();
+  if (l.slice(0, 2) !== want.slice(0, 2)) return -1;
+  let s = l === want ? 3 : 1;
+  if (/natural|neural|premium|enhanced|mejorad|siri/i.test(v.name)) s += 10;
+  if (/online/i.test(v.name)) s += 4;
+  if (/google/i.test(v.name)) s += 5;
+  if (/compact|eloquence|espeak/i.test(v.name)) s -= 5;
+  return s;
+}
+const voicesFor = lang => voices.filter(v => voiceScore(v, lang) >= 0).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
+const VKEY = lang => 'arranca-voz-' + lang.slice(0, 2);
+function pickVoice(lang){
+  let saved = null; try { saved = localStorage.getItem(VKEY(lang)) } catch(e){}
+  return voices.find(v => v.name === saved) || voicesFor(lang)[0] || null;
+}
+const VOICE_LANGS = [['en-US', 'Inglés', 'Hello! This is how I will read your English cards.'], ['ja-JP', 'Japonés', 'こんにちは。日本語のカードはこの声で読みます。'], ['es-MX', 'Español', 'Hola. Así te voy a leer las respuestas.']];
+function renderVoices(){
+  const box = $('voicePickers'); if (!box) return;
+  box.innerHTML = VOICE_LANGS.map(([lang, name]) => {
+    const list = voicesFor(lang), cur = pickVoice(lang);
+    const opts = list.map(v => `<option ${cur && v.name === cur.name ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
+    return `<div class="row"><label class="lbl grow">${name}${list.length ? `<select data-vlang="${lang}">${opts}</select>` : '<span class="small">No hay voz en este dispositivo. Descárgala (ver abajo).</span>'}</label>
+      ${list.length ? `<button data-vtest="${lang}">Probar</button>` : ''}</div>`;
+  }).join('');
+}
+$('voicePickers').addEventListener('change', e => { const s = e.target.closest('[data-vlang]'); if (s){ try { localStorage.setItem(VKEY(s.dataset.vlang), s.value) } catch(err){} } });
+$('voicePickers').addEventListener('click', e => { const b = e.target.closest('[data-vtest]'); if (b){ const l = VOICE_LANGS.find(x => x[0] === b.dataset.vtest); try { speechSynthesis.cancel() } catch(err){} speak(l[2], l[0], +$('lsRate').value) } });
 function speak(text, lang, rate){
   return new Promise(res => {
     try {
       const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate || 1;
-      const v = voices.find(v => v.lang === lang) || voices.find(v => v.lang?.replace('_','-').slice(0, 2) === lang.slice(0, 2)); if (v) u.voice = v;
+      const v = pickVoice(lang); if (v) u.voice = v;
       const t = setTimeout(res, 2000 + text.length * 180);
       u.onend = u.onerror = () => { clearTimeout(t); res() };
       speechSynthesis.speak(u);
@@ -711,16 +775,23 @@ async function lsLoop(gen){
     const c = lsQueue.shift(), a = actById(c.act), rate = +$('lsRate').value, reps = +$('lsRep').value;
     $('lsCard').innerHTML = `<div style="display:grid;gap:8px"><span><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || '')}</span></span><div class="f">${esc(c.f)}</div><div class="b">${esc(c.b)}</div></div>`;
     $('lsInfo').textContent = `Quedan ${lsQueue.length} en esta vuelta. Al terminar se arma otra.`;
+    $('drF').textContent = c.f; $('drB').textContent = '';
+    const bl = a?.bl || 'es-MX', answer = c.b && $('lsTutor').checked && bl.startsWith('es') ? 'Significa: ' + c.b : c.b;
     for (let i = 0; i < reps && lsOn && gen === lsGen; i++){
       await speak(c.f, a?.fl || 'es-MX', rate);
       if (!lsOn || gen !== lsGen) break;
       await wait(+$('lsGap').value * 1000);
-      if (c.b && lsOn && gen === lsGen) await speak(c.b, a?.bl || 'es-MX', rate);
-      await wait(1200);
+      $('drB').textContent = c.b;
+      if (c.b && lsOn && gen === lsGen) await speak(answer, bl, rate);
+      await wait(1500);
     }
   }
 }
-function lsStop(){ lsOn = false; lsGen++; try { speechSynthesis.cancel() } catch(e){} $('lsPlay').textContent = '▶ Reproducir' }
+function lsStop(){ lsOn = false; lsGen++; try { speechSynthesis.cancel() } catch(e){} $('lsPlay').textContent = '▶ Reproducir'; $('drive').hidden = true }
+$('driveBtn').onclick = () => { $('drive').hidden = false; if (!lsOn) $('lsPlay').click() };
+$('drStop').onclick = () => lsStop();
+try { $('lsTutor').checked = localStorage.getItem('arranca-tutor') !== '0' } catch(e){}
+$('lsTutor').onchange = () => { try { localStorage.setItem('arranca-tutor', $('lsTutor').checked ? '1' : '0') } catch(e){} };
 $('lsPlay').onclick = () => {
   if (lsOn){ lsStop(); return }
   if (!window.speechSynthesis){ $('lsInfo').textContent = 'Este navegador no tiene voz. Prueba con Chrome o Safari.'; return }
