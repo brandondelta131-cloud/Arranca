@@ -993,14 +993,18 @@ loadVoices(); try { speechSynthesis.onvoiceschanged = () => { loadVoices(); rend
 let vecesVoces = 0;
 const esperarVoces = setInterval(() => { const n = voices.length; loadVoices(); if (voices.length !== n) renderVoices(); if (++vecesVoces > 10) clearInterval(esperarVoces) }, 700);
 // Prefiere voces neuronales/premium: suenan como persona y no como robot
+// Voces de efectos de Apple (no sirven para estudiar) y voces antiguas tipo Eloquence (suenan robóticas)
+const VOZ_BROMA = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|deranged|hysterical|pipe organ)\b/i;
+const VOZ_ANTIGUA = /^(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b|eloquence|compact|espeak/i;
+const vozMejor = v => /natural|neural|premium|enhanced|mejorad|siri/i.test(v.name + ' ' + (v.voiceURI || ''));
 function voiceScore(v, lang){
   const l = (v.lang || '').replace('_', '-').toLowerCase(), want = lang.toLowerCase();
-  if (l.slice(0, 2) !== want.slice(0, 2)) return -1;
+  if (l.slice(0, 2) !== want.slice(0, 2) || VOZ_BROMA.test(v.name)) return -1;
   let s = l === want ? 3 : 1;
-  if (/natural|neural|premium|enhanced|mejorad|siri/i.test(v.name)) s += 10;
+  if (vozMejor(v)) s += 10;
   if (/online/i.test(v.name)) s += 4;
   if (/google/i.test(v.name)) s += 5;
-  if (/compact|eloquence|espeak/i.test(v.name)) s -= 5;
+  if (VOZ_ANTIGUA.test(v.name + ' ' + (v.voiceURI || ''))) s -= 8;
   return s;
 }
 const voicesFor = lang => voices.filter(v => voiceScore(v, lang) >= 0).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
@@ -1011,8 +1015,10 @@ const DISPOSITIVO = esIOS ? 'iphone' : 'pc';
 const VKEY = lang => 'arranca-voz-' + lang.slice(0, 2);
 function vozGuardada(lang){
   const k = lang.slice(0, 2);
-  try { const l = localStorage.getItem(VKEY(lang)); if (l) return l } catch(e){}
-  return voces?.[DISPOSITIVO]?.[k] || (esIOS ? SISTEMA : null);
+  const valida = n => n && !VOZ_BROMA.test(n) && !VOZ_ANTIGUA.test(n); // ignorar si quedó guardada una voz de broma o antigua
+  try { const l = localStorage.getItem(VKEY(lang)); if (valida(l)) return l } catch(e){}
+  const c = voces?.[DISPOSITIVO]?.[k];
+  return valida(c) ? c : (esIOS ? SISTEMA : null);
 }
 function pickVoice(lang){
   const saved = vozGuardada(lang);
@@ -1026,7 +1032,7 @@ function renderVoices(){
   box.innerHTML = VOICE_LANGS.map(([lang, name]) => {
     const list = voicesFor(lang), saved = vozGuardada(lang), cur = pickVoice(lang);
     const sis = `<option value="${SISTEMA}" ${saved === SISTEMA ? 'selected' : ''}>${esIOS ? 'Voz del iPhone (la que elegiste en Ajustes)' : 'Voz del sistema'}</option>`;
-    const opts = list.map(v => `<option value="${esc(v.name)}" ${saved !== SISTEMA && cur && v.name === cur.name ? 'selected' : ''}>${esc(v.name)}${/premium|enhanced|mejorad|natural|neural/i.test(v.name) ? ' ★' : ''}</option>`).join('');
+    const opts = list.map(v => `<option value="${esc(v.name)}" ${saved !== SISTEMA && cur && v.name === cur.name ? 'selected' : ''}>${esc(v.name)}${vozMejor(v) ? ' ★' : ''}</option>`).join('');
     return `<div class="row"><label class="lbl grow">${name}<select data-vlang="${lang}">${sis}${opts}</select></label>
       <button data-vtest="${lang}">Probar</button></div>`;
   }).join('') + `<p class="muted small">${voices.length} voces encontradas en este dispositivo. Tu elección se guarda en tu cuenta.</p>`;
