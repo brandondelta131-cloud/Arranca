@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arranca</title>
+<meta name="theme-color" content="#e0522b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Arranca">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+/* Layout: una sola columna tipo app (cabecera + pestañas fijas), tarjetas de bloque por actividad, panel de cronómetro grande cuando corre. */
+:root{
+  --bg:#f1f4f8; --panel:#ffffff; --ink:#151922; --muted:#5d6678; --line:#dbe1ea;
+  --accent:#e0522b; --accent-ink:#ffffff; --ok:#17885d; --warn:#a86f00; --soft:#e8edf4;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0e1117; --panel:#171b23; --ink:#e9ecf2; --muted:#9098aa; --line:#272d39;
+  --accent:#ff7448; --accent-ink:#1b0a04; --ok:#3ccf8e; --warn:#f2c14e; --soft:#1f2430; color-scheme:dark}}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--f-body);-webkit-tap-highlight-color:transparent;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:0 60px}
+[hidden]{display:none!important}
+.wrap{max-width:820px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:14px 8px;display:grid;gap:10px}
+.brand{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font-size:28px;font-weight:800;letter-spacing:-.5px}
+.brand h1 span{color:var(--accent)}
+.brand small{color:var(--muted);font-variant-numeric:tabular-nums}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;background:var(--soft);padding:4px;border-radius:12px}
+nav.tabs button{flex:1 0 auto;border:0;background:transparent;color:var(--muted);padding:8px 12px;border-radius:9px;font:700 14px var(--f-body);cursor:pointer;white-space:nowrap}
+nav.tabs button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+nav.tabs .badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:11px;line-height:18px}
+section.tab{display:grid;gap:14px;padding-top:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px;min-width:0}
+.card h2{font-size:18px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+button,.btn{font:700 15px var(--f-body);border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);padding:10px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.ok{background:var(--ok);border-color:var(--ok);color:#04170e}
+button.ghost{background:transparent}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row > .grow{flex:1;min-width:140px}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 10px;width:100%}
+textarea{min-height:90px;resize:vertical}
+label.lbl{font-size:13px;color:var(--muted);display:grid;gap:4px}
+.bar{height:8px;background:var(--soft);border-radius:5px;overflow:hidden}
+.bar > div{height:100%;width:0;border-radius:5px;transition:width .6s}
+
+.nag{background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;animation:pulse 2s infinite}
+.nag b{font-family:var(--f-display);font-size:17px}
+.nag button{background:var(--accent-ink);color:var(--accent);border:0}
+.nag.soft{background:var(--soft);color:var(--ink);animation:none;border:1px solid var(--line)}
+.nag.soft button{background:var(--accent);color:var(--accent-ink)}
+@keyframes pulse{50%{filter:brightness(1.15)}}
+@media (prefers-reduced-motion: reduce){.nag{animation:none}}
+
+.block{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.block:first-of-type{border-top:0}
+.dot{width:14px;height:14px;border-radius:50%}
+.block .name{font-weight:700}
+.block .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.block .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.block.done .name::after{content:" ✓";color:var(--ok)}
+@media (max-width:520px){.block{grid-template-columns:auto 1fr}.block .acts{grid-column:1/-1;justify-content:flex-start}}
+
+.timer{text-align:center;gap:6px}
+.timer .clock{font:800 clamp(56px,16vw,96px)/1 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:-2px}
+.timer .who{font-weight:700;font-size:18px}
+
+.flash{min-height:180px;display:grid;place-items:center;text-align:center;gap:8px;padding:20px;border-radius:14px;background:var(--soft)}
+.flash .f{font:700 clamp(22px,6vw,34px)/1.25 var(--f-body)}
+.flash .b{font-size:20px;color:var(--ok)}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px;color:#fff}
+.list{display:grid;gap:0}
+.li{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-top:1px solid var(--line);align-items:center;min-width:0}
+.li:first-child{border-top:0}
+.li .t{min-width:0;overflow-wrap:anywhere}
+.x{background:transparent;border:0;color:var(--muted);padding:4px 8px}
+
+.sounds{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sounds button{flex-direction:column;align-items:flex-start;text-align:left;padding:12px}
+.sounds button small{font-weight:400;color:var(--muted)}
+.sounds button.on{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+
+details{border-top:1px solid var(--line);padding-top:10px}
+details summary{cursor:pointer;font-weight:700}
+details ol{padding-left:20px;margin:8px 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:20;padding:16px}
+.modal .card{max-width:520px;width:100%}
+.sync{font-size:12px}
+.syncdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:middle}
+.syncdot.on{background:var(--ok)} .syncdot.err{background:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="brand">
+    <h1>Arran<span>ca</span>.</h1>
+    <small id="clockNow"></small>
+  </div>
+  <div id="nag" hidden></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="hoy" class="on">Hoy</button>
+    <button data-tab="repaso">Repaso<span class="badge" id="dueBadge" hidden>0</span></button>
+    <button data-tab="escuchar">Escuchar</button>
+    <button data-tab="musica">Música</button>
+    <button data-tab="bloqueo">Bloqueo</button>
+    <button data-tab="ajustes">Ajustes</button>
+  </nav>
+</header>
+
+<!-- HOY -->
+<section class="tab" id="t-hoy">
+  <div class="card" id="loginHint" hidden>
+    <h2>Activa el guardado automático</h2>
+    <p class="muted small">Entra con tu cuenta en Ajustes y tus tarjetas y avances se guardan solos en la PC y en el teléfono.</p>
+    <div class="row"><button class="primary" data-go="ajustes">Ir a Ajustes</button></div>
+  </div>
+
+  <div class="card" id="activate">
+    <h2>Activa los recordatorios</h2>
+    <p class="muted small">El navegador solo deja sonar alarmas después de un toque. Esto también mantiene la pantalla encendida mientras estudias.</p>
+    <div class="row"><button class="primary" id="activateBtn">Activar alarmas y pantalla</button></div>
+  </div>
+
+  <div class="card timer" id="timerCard" hidden>
+    <div class="who" id="tWho"></div>
+    <div class="clock" id="tClock">00:00</div>
+    <div class="muted small" id="tSub"></div>
+    <div class="bar"><div id="tBar"></div></div>
+    <div class="row" style="justify-content:center">
+      <button id="tPause">Pausar</button>
+      <a class="btn" id="tLink" target="_blank" rel="noopener">Abrir curso ↗</a>
+      <button id="tMusic">♪ Música</button>
+      <button class="ghost" id="tStop">Terminar bloque</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2>Plan de hoy</h2>
+      <span class="muted small" id="dayTotal"></span>
+    </div>
+    <div class="bar"><div id="dayBar" style="background:var(--accent)"></div></div>
+    <div id="blocks"></div>
+  </div>
+
+  <div class="card">
+    <h2>Lo que viste hoy</h2>
+    <p class="muted small">Al terminar cada bloque anota lo aprendido. La app te lo repite varias veces hoy y luego cada vez menos: 10 min, 30 min, 1 h, 3 h, 6 h, 1 día, 2, 4, 7, 15, 30 y 60 días.</p>
+    <div class="row"><button id="addFromHoy">+ Anotar lo que aprendí</button><button id="goReview">Repasar ahora</button></div>
+  </div>
+  <p class="muted sync"><span class="syncdot" id="syncDot"></span><span id="syncNote">Guardado en este dispositivo.</span></p>
+</section>
+
+<!-- REPASO -->
+<section class="tab" id="t-repaso" hidden>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2>Repaso</h2><span class="muted small" id="revCount"></span></div>
+    <div id="revArea"></div>
+  </div>
+  <div class="card">
+    <h2>Agregar tarjetas</h2>
+    <div class="row">
+      <label class="lbl grow">Materia<select id="cAct"></select></label>
+    </div>
+    <label class="lbl">Una por línea: <b>frente = respuesta</b>
+      <textarea id="cBulk" placeholder="I would rather = Preferiría&#10;おはようございます = Buenos días&#10;GROUP BY = agrupa filas para agregar (SUM, COUNT…)"></textarea>
+    </label>
+    <div class="row"><button class="primary" id="cAdd">Guardar tarjetas</button><span class="muted small" id="cMsg"></span></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2>Todas las tarjetas</h2>
+      <select id="cFilter" style="width:auto"></select></div>
+    <div class="list" id="cList"></div>
+  </div>
+</section>
+
+<!-- ESCUCHAR -->
+<section class="tab" id="t-escuchar" hidden>
+  <div class="card">
+    <h2>Modo escucha</h2>
+    <p class="muted small">Lee en voz alta tus tarjetas en bucle: primero las que tocan, luego todo lo de hoy, lo de ayer con menos frecuencia y lo anterior de vez en cuando. Sirve con audífonos mientras caminas o vas al trabajo.</p>
+    <div class="flash" id="lsCard"><div class="f muted">Pulsa reproducir</div></div>
+    <div class="row">
+      <button class="primary" id="lsPlay">▶ Reproducir</button>
+      <button id="lsSkip">Siguiente</button>
+      <label class="lbl grow">Materia<select id="lsAct"></select></label>
+    </div>
+    <div class="row">
+      <label class="lbl grow">Velocidad <input type="range" id="lsRate" min="0.6" max="1.3" step="0.1" value="0.9"></label>
+      <label class="lbl grow">Pausa antes de la respuesta <input type="range" id="lsGap" min="1" max="8" step="1" value="3"></label>
+      <label class="lbl grow">Veces por tarjeta <select id="lsRep"><option>1</option><option selected>2</option><option>3</option></select></label>
+    </div>
+    <p class="muted small" id="lsInfo"></p>
+    <p class="muted small">En iPhone, descarga las voces de inglés y japonés en Ajustes → Accesibilidad → Contenido leído → Voces.</p>
+  </div>
+</section>
+
+<!-- MÚSICA -->
+<section class="tab" id="t-musica" hidden>
+  <div class="card">
+    <h2>Sonido para concentrarte</h2>
+    <p class="muted small">Todo se genera aquí mismo: sin voces, sin letras, sin anuncios ni videos recomendados.</p>
+    <div class="sounds" id="sounds"></div>
+    <label class="lbl">Volumen <input type="range" id="vol" min="0" max="1" step="0.05" value="0.5"></label>
+    <label class="row small"><input type="checkbox" id="autoMusic" style="width:auto"> Encender música sola al empezar un bloque</label>
+  </div>
+</section>
+
+<!-- BLOQUEO -->
+<section class="tab" id="t-bloqueo" hidden>
+  <div class="card">
+    <h2>Bloquea lo que te distrae</h2>
+    <p class="muted small">Una app web no puede bloquear otras apps; eso lo hace tu teléfono. Configúralo una vez y se aplica solo cada día.</p>
+    <details open><summary>iPhone: Tiempo en pantalla + Concentración</summary><ol>
+      <li>Ajustes → Concentración → + → Personalizar → nómbralo "Estudio".</li>
+      <li>En "Apps permitidas" deja solo Arranca, Calendario, Teléfono y Safari. Las demás no te notifican.</li>
+      <li>Agrega dos horarios: lun–vie de 13:00 a 17:15, y sáb–dom de 10:00 a 17:00.</li>
+      <li>Ajustes → Tiempo en pantalla → Límites de apps → agrega Redes sociales, Juegos y Entretenimiento con 1 min al día.</li>
+      <li>Tiempo en pantalla → Usar código, y pide a alguien de confianza que lo ponga por ti.</li>
+    </ol></details>
+    <details><summary>Android: Modo concentración (Bienestar digital)</summary><ol>
+      <li>Ajustes → Bienestar digital y controles parentales → Modo concentración.</li>
+      <li>Marca todas las apps que te distraen y pon tus horas de estudio en "Establecer un horario".</li>
+      <li>Deja fuera de la lista tu navegador y Arranca.</li>
+    </ol></details>
+    <details><summary>Computadora: LeechBlock NG (gratis)</summary><ol>
+      <li>Instala la extensión LeechBlock NG desde la tienda de Chrome o Edge.</li>
+      <li>En "Block Set 1" pon <b>*</b> para bloquear todo y agrega excepciones: tripleten.com, el sitio de Daxus, el de inglés y la dirección de esta app.</li>
+      <li>Pon tus horas de estudio y marca que no se pueda cambiar durante el bloqueo.</li>
+    </ol></details>
+    <details><summary>Música permitida</summary>
+      <p class="small">Usa la pestaña Música de aquí y no necesitas Spotify ni YouTube, que es donde empiezan las distracciones.</p>
+    </details>
+  </div>
+</section>
+
+<!-- AJUSTES -->
+<section class="tab" id="t-ajustes" hidden>
+  <div class="card" id="acctCard">
+    <h2>Cuenta y guardado automático</h2>
+    <div id="acctBody"></div>
+  </div>
+  <div class="card">
+    <h2>Tus materias y tiempos</h2>
+    <p class="muted small">Cambia horas, minutos y el enlace de cada curso. Se guarda solo.</p>
+    <div id="acts"></div>
+    <div class="row"><button id="addAct">+ Agregar materia</button></div>
+  </div>
+  <div class="card">
+    <h2>Insistencia</h2>
+    <label class="lbl">Si no has empezado un bloque, la alarma suena cada
+      <select id="nagMin"><option value="3">3 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option></select></label>
+  </div>
+</section>
+</div>
+
+<div class="modal" id="learnModal" hidden>
+  <div class="card">
+    <h2 id="lmTitle">¡Bloque completo!</h2>
+    <p class="muted small">Anota lo que viste ahora que está fresco. Una línea por idea: <b>frente = respuesta</b>.</p>
+    <textarea id="lmText"></textarea>
+    <div class="row"><button class="primary" id="lmSave">Guardar y repetirlo hoy</button><button class="ghost" id="lmClose">Después</button></div>
+  </div>
+</div>
+
+<script>
+/* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ymd = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today = () => ymd(new Date());
+const nowHM = () => { const d = new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0') };
+const clone = o => JSON.parse(JSON.stringify(o));
+const MIN = 60000;
+// Escalera de repaso (minutos): mucho hoy, cada vez menos después
+const LADDER = [10, 30, 60, 180, 360, 1440, 2880, 5760, 10080, 21600, 43200, 86400];
+
+const DEFAULT_PLAN = {
+  nagMin: 5,
+  acts: [
+    {id:'ingles',  name:'Inglés · Kale Anders',     time:'13:00', mins:45, timeWE:'10:00', minsWE:60, link:'', color:'#3b82f6', fl:'en-US', bl:'es-MX'},
+    {id:'japones', name:'Japonés',                  time:'14:00', mins:30, timeWE:'11:15', minsWE:45, link:'', color:'#e11d48', fl:'ja-JP', bl:'es-MX'},
+    {id:'triple',  name:'TripleTen · Analista de datos', time:'15:00', mins:90, timeWE:'13:00', minsWE:90, link:'https://tripleten.com/', color:'#8b5cf6', fl:'es-MX', bl:'es-MX'},
+    {id:'daxus',   name:'Daxus Latam',              time:'16:45', mins:30, timeWE:'16:00', minsWE:60, link:'', color:'#0d9488', fl:'es-MX', bl:'es-MX'}
+  ]
+};
+
+let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {};
+
+/* ================= Guardado local + sincronización ================= */
+const LKEY = 'arranca-app-v1';
+function localLoad(){
+  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {} } } catch(e){}
+}
+function snapshot(){ return {plan, planU, log, cards} }
+function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
+
+// Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
+function mergeState(a, b){
+  const out = {};
+  out.plan = (b.planU || 0) > (a.planU || 0) ? b.plan : a.plan;
+  out.planU = Math.max(a.planU || 0, b.planU || 0);
+  out.log = {days:{}};
+  for (const src of [a.log, b.log]) for (const [d, acts] of Object.entries(src?.days || {})){
+    out.log.days[d] ||= {};
+    for (const [k, m] of Object.entries(acts)) out.log.days[d][k] = Math.max(out.log.days[d][k] || 0, m);
+  }
+  out.cards = {};
+  const cutoff = Date.now() - 30 * 86400000;
+  for (const src of [a.cards, b.cards]) for (const [id, c] of Object.entries(src || {})){
+    const cur = out.cards[id];
+    if (!cur || (c.u || 0) > (cur.u || 0)) out.cards[id] = c;
+  }
+  for (const [id, c] of Object.entries(out.cards)) if (c.del && (c.u || 0) < cutoff) delete out.cards[id];
+  return out;
+}
+
+let sb = null, session = null, syncing = false, syncAgain = false, syncTimer = null, lastSync = 0;
+function setSync(state, text){ $('syncDot').className = 'syncdot ' + (state || ''); $('syncNote').textContent = text }
+function scheduleSync(){ if (!session) return; clearTimeout(syncTimer); syncTimer = setTimeout(sync, 2500) }
+async function sync(){
+  if (!sb || !session) return;
+  if (syncing){ syncAgain = true; return }
+  syncing = true;
+  try {
+    const uid = session.user.id;
+    const { data, error } = await sb.from('arranca_state').select('data').eq('user_id', uid).maybeSingle();
+    if (error) throw error;
+    const remote = data?.data || {};
+    const merged = mergeState(snapshot(), remote);
+    const changedLocal = JSON.stringify(merged) !== JSON.stringify(snapshot());
+    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards;
+    try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){}
+    if (JSON.stringify(merged) !== JSON.stringify(remote)){
+      const { error: e2 } = await sb.from('arranca_state').upsert({user_id: uid, data: merged, updated_at: new Date().toISOString()});
+      if (e2) throw e2;
+    }
+    lastSync = Date.now();
+    setSync('on', 'Guardado en la nube · ' + nowHM());
+    if (changedLocal) renderAll();
+  } catch(e){
+    setSync('err', navigator.onLine ? 'No se pudo guardar en la nube. Se reintentará solo.' : 'Sin internet. Se guarda aquí y se sube al volver la conexión.');
+  } finally {
+    syncing = false;
+    if (syncAgain){ syncAgain = false; scheduleSync() }
+  }
+}
+async function initSync(){
+  renderAccount();
+  if (!SUPABASE_URL || !SUPABASE_KEY || !window.supabase){ setSync('', 'Guardado en este dispositivo.'); return }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true}});
+  const { data } = await sb.auth.getSession();
+  session = data.session;
+  sb.auth.onAuthStateChange((_ev, s) => { session = s; renderAccount(); if (s) sync() });
+  renderAccount();
+  if (session) sync(); else setSync('', 'Guardado en este dispositivo. Entra en Ajustes para guardar en la nube.');
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync() });
+window.addEventListener('online', () => sync());
+setInterval(() => { if (session && Date.now() - lastSync > 60000) sync() }, 15000);
+
+function renderAccount(){
+  const box = $('acctBody');
+  $('loginHint').hidden = !(SUPABASE_URL && SUPABASE_KEY) || !!session;
+  if (!SUPABASE_URL || !SUPABASE_KEY){
+    box.innerHTML = '<p class="muted small">El guardado en la nube todavía no está conectado. Mientras tanto todo se guarda en este dispositivo.</p>';
+    return;
+  }
+  if (session){
+    box.innerHTML = `<p class="small">Conectado como <b>${esc(session.user.email)}</b>. Todo lo que hagas aquí aparece en tus otros dispositivos.</p>
+      <div class="row"><button id="syncNow">Guardar ahora</button><button class="ghost" id="logout">Cerrar sesión</button></div>`;
+    $('syncNow').onclick = () => sync();
+    $('logout').onclick = async () => { await sb.auth.signOut(); session = null; renderAccount(); setSync('', 'Guardado en este dispositivo.') };
+    return;
+  }
+  box.innerHTML = `<p class="muted small">Usa el mismo correo y contraseña en la PC y en el teléfono.</p>
+    <label class="lbl">Correo<input type="email" id="aEmail" autocomplete="email" inputmode="email"></label>
+    <label class="lbl">Contraseña<input type="password" id="aPass" autocomplete="current-password" minlength="6"></label>
+    <div class="row"><button class="primary" id="aIn">Entrar</button><button id="aUp">Crear cuenta</button></div>
+    <p class="small" id="aMsg"></p>`;
+  const creds = () => ({email: $('aEmail').value.trim(), password: $('aPass').value});
+  $('aIn').onclick = async () => {
+    $('aMsg').textContent = 'Entrando…';
+    const { error } = await sb.auth.signInWithPassword(creds());
+    $('aMsg').textContent = error ? (/confirm/i.test(error.message) ? 'Primero confirma tu correo con el enlace que te llegó.' : 'Correo o contraseña incorrectos.') : '';
+  };
+  $('aUp').onclick = async () => {
+    const c = creds();
+    if (c.password.length < 6){ $('aMsg').textContent = 'La contraseña necesita al menos 6 caracteres.'; return }
+    $('aMsg').textContent = 'Creando cuenta…';
+    const { data, error } = await sb.auth.signUp(c);
+    if (error) $('aMsg').textContent = 'No se pudo crear: ' + error.message;
+    else if (!data.session) $('aMsg').textContent = 'Listo. Abre el correo que te llegó, toca el enlace para confirmar y luego vuelve aquí y pulsa Entrar.';
+  };
+}
+
+/* ================= Plan / log / tarjetas ================= */
+function savePlan(){ planU = Date.now(); persist() }
+function saveLog(){ persist() }
+function saveCard(c){ c.u = Date.now(); cards[c.id] = c; persist() }
+function delCard(id){ cards[id] = {id, del: true, u: Date.now()}; persist() }
+
+/* ================= Tabs ================= */
+let tab = 'hoy';
+$('tabs').onclick = e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('section.tab').forEach(s => s.hidden = s.id !== 't-' + tab);
+  if (tab === 'repaso') renderReview();
+  if (tab === 'ajustes') renderSettings(true);
+  window.scrollTo(0, 0);
+};
+function goTab(t){ document.querySelector(`#tabs button[data-tab="${t}"]`).click() }
+document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g && !g.closest('#nag')) goTab(g.dataset.go) });
+
+/* ================= Audio base y avisos ================= */
+let actx = null, activated = false, wakeLock = null;
+function ctx(){ if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx }
+function chime(strong){
+  try {
+    const c = ctx(); const notes = strong ? [880, 660, 880, 660, 990] : [660, 880, 1100];
+    notes.forEach((f, i) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = f; o.type = 'triangle'; o.connect(g); g.connect(c.destination);
+      const t = c.currentTime + i * 0.22;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      o.start(t); o.stop(t + 0.5);
+    });
+  } catch(e){}
+  try { navigator.vibrate?.(strong ? [400,150,400,150,400] : [200]) } catch(e){}
+}
+async function notify(title, body){
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg) reg.showNotification(title, {body, icon: 'icon-192.png', tag: 'arranca', renotify: true});
+    else new Notification(title, {body});
+  } catch(e){}
+}
+async function keepAwake(){ try { wakeLock = await navigator.wakeLock?.request('screen') } catch(e){} }
+document.addEventListener('visibilitychange', () => { if (activated && document.visibilityState === 'visible') keepAwake() });
+$('activateBtn').onclick = () => {
+  ctx(); chime(); keepAwake(); activated = true; $('activate').hidden = true;
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission() } catch(e){}
+  checkNag(true);
+};
+
+/* ================= Hoy / cronómetro ================= */
+const actById = id => plan.acts.find(a => a.id === id);
+// Sábado y domingo usan su propio horario y minutos si existen
+const isWE = () => [0, 6].includes(new Date().getDay());
+const tOf = a => (isWE() && a.timeWE) ? a.timeWE : a.time;
+const mOf = a => (isWE() && a.minsWE) ? a.minsWE : a.mins;
+const doneMin = (id, d = today()) => (log.days?.[d]?.[id]) || 0;
+let run = null; // {id, last, paused, notified}
+
+function startBlock(id){
+  if (run && run.id !== id) stopBlock();
+  const a = actById(id); if (!a) return;
+  if (run && run.id === id){ if (run.paused) $('tPause').click(); return }
+  run = {id, last: Date.now(), paused: false, notified: doneMin(id) >= mOf(a)};
+  if (!activated) $('activateBtn').click();
+  if ($('autoMusic').checked && !music) playSound(lastSound || 'lluvia');
+  renderHoy(); checkNag();
+}
+function stopBlock(){ if (!run) return; tickRun(); saveLog(); run = null; renderHoy(); checkNag() }
+let lastFlush = Date.now();
+function tickRun(){
+  if (!run || run.paused) return;
+  const now = Date.now(), d = today();
+  log.days ||= {}; log.days[d] ||= {};
+  log.days[d][run.id] = (log.days[d][run.id] || 0) + (now - run.last) / MIN;
+  run.last = now;
+  const a = actById(run.id);
+  if (a && !run.notified && log.days[d][run.id] >= mOf(a)){
+    run.notified = true; chime(true); notify('¡Bloque completo!', a.name + ': anota lo que aprendiste.'); saveLog(); openLearn(a.id, true);
+  }
+  if (now - lastFlush > MIN){ lastFlush = now; saveLog() }
+}
+$('tPause').onclick = () => { if (!run) return; if (run.paused){ run.paused = false; run.last = Date.now() } else { tickRun(); run.paused = true; saveLog() } renderTimer(); checkNag() };
+$('tStop').onclick = () => { const id = run?.id; stopBlock(); if (id) openLearn(id, false) };
+$('tMusic').onclick = () => music ? stopSound() : playSound(lastSound || 'lluvia');
+
+const fmt = m => { const s = Math.max(0, Math.round(m * 60)); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0') };
+function renderTimer(){
+  $('timerCard').hidden = !run;
+  if (!run) { document.title = 'Arranca'; return }
+  const a = actById(run.id); if (!a) return;
+  const goal = mOf(a), done = doneMin(a.id), left = goal - done;
+  $('tWho').innerHTML = `<span class="chip" style="background:${esc(a.color)}">${esc(a.name)}</span>`;
+  $('tClock').textContent = left > 0 ? fmt(left) : '+' + fmt(-left);
+  $('tSub').textContent = run.paused ? 'En pausa' : (left > 0 ? `faltan para tu meta de ${goal} min` : 'Meta cumplida. Todo lo extra suma.');
+  $('tBar').style.width = Math.min(100, 100 * done / goal) + '%';
+  $('tBar').style.background = a.color;
+  $('tPause').textContent = run.paused ? 'Continuar' : 'Pausar';
+  $('tLink').hidden = !a.link; if (a.link) $('tLink').href = a.link;
+  $('tMusic').textContent = music ? '♪ Apagar música' : '♪ Música';
+  document.title = (left > 0 ? fmt(left) : '✓') + ' · ' + a.name;
+}
+function renderHoy(){
+  const acts = [...plan.acts].sort((x, y) => (tOf(x) || '').localeCompare(tOf(y) || ''));
+  let tot = 0, got = 0;
+  $('blocks').innerHTML = acts.map(a => {
+    const m = mOf(a), d = doneMin(a.id); tot += m; got += Math.min(d, m);
+    const pct = Math.min(100, 100 * d / m), isRun = run?.id === a.id;
+    return `<div class="block ${d >= m ? 'done' : ''}">
+      <span class="dot" style="background:${esc(a.color)}"></span>
+      <div style="min-width:0;display:grid;gap:4px">
+        <div class="name">${esc(a.name)}</div>
+        <div class="meta">${esc(tOf(a) || '—')} · ${Math.floor(d)} de ${m} min</div>
+        <div class="bar"><div style="width:${pct}%;background:${esc(a.color)}"></div></div>
+      </div>
+      <div class="acts">
+        ${a.link ? `<a class="btn" href="${esc(a.link)}" target="_blank" rel="noopener">Abrir ↗</a>` : ''}
+        <button class="${isRun ? '' : 'primary'}" data-start="${esc(a.id)}">${isRun ? (run.paused ? 'Continuar' : 'En curso') : (d > 0 ? 'Seguir' : 'Empezar')}</button>
+      </div></div>`;
+  }).join('');
+  $('dayTotal').textContent = `${Math.floor(got)} de ${tot} min`;
+  $('dayBar').style.width = (tot ? 100 * got / tot : 0) + '%';
+  renderTimer();
+}
+$('blocks').onclick = e => { const b = e.target.closest('[data-start]'); if (b) startBlock(b.dataset.start) };
+
+/* ================= Insistencia ================= */
+let lastNag = 0, lastRevNag = 0;
+function pendingBlock(){
+  const hm = nowHM();
+  return [...plan.acts].sort((x, y) => (tOf(x)||'').localeCompare(tOf(y)||''))
+    .find(a => tOf(a) && tOf(a) <= hm && doneMin(a.id) < mOf(a));
+}
+function checkNag(force){
+  const box = $('nag'), now = Date.now();
+  const due = dueCards().length;
+  if (run && !run.paused){ box.hidden = true; return }
+  const p = pendingBlock();
+  if (p){
+    box.className = 'nag'; box.hidden = false;
+    box.innerHTML = `<div style="flex:1;min-width:180px"><b>Te toca ${esc(p.name)}</b><br><span class="small">Desde las ${esc(tOf(p))}. Llevas ${Math.floor(doneMin(p.id))} de ${mOf(p)} min. No te voy a dejar en paz hasta que lo termines.</span></div>
+      <button data-start="${esc(p.id)}">${run?.paused && run.id === p.id ? 'Continuar' : 'Empezar ya'}</button>`;
+    if (activated && (force || now - lastNag >= (plan.nagMin || 5) * MIN)){ lastNag = now; chime(true); notify('Te toca ' + p.name, 'Llevas ' + Math.floor(doneMin(p.id)) + ' de ' + mOf(p) + ' min.') }
+  } else if (due > 0){
+    box.className = 'nag soft'; box.hidden = false;
+    box.innerHTML = `<div style="flex:1;min-width:180px"><b>${due} ${due === 1 ? 'tarjeta toca' : 'tarjetas tocan'} repaso</b><br><span class="small">Dos minutos y vuelves a lo tuyo.</span></div><button data-go="repaso">Repasar</button>`;
+    if (activated && now - lastRevNag >= 20 * MIN){ lastRevNag = now; chime(false) }
+  } else box.hidden = true;
+}
+$('nag').onclick = e => {
+  const s = e.target.closest('[data-start]'), g = e.target.closest('[data-go]');
+  if (s){ startBlock(s.dataset.start); goTab('hoy') }
+  if (g) goTab(g.dataset.go);
+};
+
+/* ================= Tarjetas ================= */
+const cardList = () => Object.values(cards).filter(c => !c.del);
+const dueCards = (act) => cardList().filter(c => c.due <= Date.now() && (!act || c.act === act)).sort((a, b) => a.due - b.due);
+function addCards(act, text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let n = 0;
+  for (const l of lines){
+    const i = l.indexOf('=');
+    const f = (i >= 0 ? l.slice(0, i) : l).trim(), b = (i >= 0 ? l.slice(i + 1) : '').trim();
+    if (!f) continue;
+    const now = Date.now();
+    saveCard({id: 'c' + now.toString(36) + Math.random().toString(36).slice(2, 6), act, f, b, created: now, step: 0, due: now + LADDER[0] * MIN, reps: 0});
+    n++;
+  }
+  renderCards(); renderBadge(); checkNag();
+  return n;
+}
+function grade(c, ok){
+  c = clone(c);
+  c.step = ok ? Math.min(c.step + 1, LADDER.length - 1) : 0;
+  c.due = Date.now() + LADDER[c.step] * MIN; c.reps = (c.reps || 0) + 1;
+  saveCard(c);
+}
+function actOptions(sel, withAll){
+  sel.innerHTML = (withAll ? '<option value="">Todas las materias</option>' : '') + plan.acts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+}
+function whenTxt(ms){
+  const d = ms - Date.now(); if (d <= 0) return 'ahora';
+  const m = d / MIN; if (m < 60) return `en ${Math.ceil(m)} min`;
+  if (m < 1440) return `en ${Math.round(m / 60)} h`; return `en ${Math.round(m / 1440)} días`;
+}
+function renderBadge(){ const n = dueCards().length; $('dueBadge').hidden = !n; $('dueBadge').textContent = n }
+function renderCards(){
+  const f = $('cFilter').value;
+  const list = cardList().filter(c => !f || c.act === f).sort((a, b) => a.due - b.due);
+  $('cList').innerHTML = list.length ? list.map(c => {
+    const a = actById(c.act);
+    return `<div class="li"><div class="t"><b>${esc(c.f)}</b>${c.b ? ' = ' + esc(c.b) : ''}<br>
+      <span class="small muted"><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || c.act)}</span> próximo repaso ${whenTxt(c.due)} · nivel ${c.step + 1}/${LADDER.length}</span></div>
+      <button class="x" data-del="${esc(c.id)}" aria-label="Borrar tarjeta">✕</button></div>`;
+  }).join('') : '<p class="muted small">Aún no tienes tarjetas. Escribe arriba lo que viste hoy, una idea por línea.</p>';
+  if (tab === 'repaso' && !revShown) renderReview();
+}
+$('cList').onclick = e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  if (b.dataset.sure){ delCard(b.dataset.del); renderCards(); renderBadge() } else { b.dataset.sure = '1'; b.textContent = '¿Borrar?' }
+};
+$('cFilter').onchange = renderCards;
+$('cAdd').onclick = () => {
+  const n = addCards($('cAct').value, $('cBulk').value);
+  $('cMsg').textContent = n ? `${n} guardada${n > 1 ? 's' : ''}. La primera repetición es en 10 min.` : 'Escribe al menos una línea.';
+  if (n) $('cBulk').value = '';
+};
+
+let revCard = null, revShown = false;
+function renderReview(){
+  const due = dueCards();
+  $('revCount').textContent = due.length ? `${due.length} pendientes` : '';
+  revCard = due[0] || null; revShown = false;
+  if (!revCard){
+    const next = cardList().sort((a, b) => a.due - b.due)[0];
+    $('revArea').innerHTML = `<div class="flash"><div><div class="f">Nada pendiente 🎉</div><div class="muted small">${next ? 'Siguiente repaso ' + whenTxt(next.due) : 'Agrega tarjetas abajo para empezar.'}</div></div></div>`;
+    return;
+  }
+  const a = actById(revCard.act);
+  $('revArea').innerHTML = `<div class="flash"><div style="display:grid;gap:8px">
+      <span><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || '')}</span></span>
+      <div class="f" lang="${esc(a?.fl || 'es')}">${esc(revCard.f)}</div>
+      <div class="b" id="rvBack" hidden>${esc(revCard.b || '(sin respuesta)')}</div></div></div>
+    <div class="row" style="justify-content:center">
+      <button id="rvSay">🔊 Escuchar</button>
+      <button class="primary" id="rvShow">Mostrar respuesta</button>
+      <button id="rvNo" hidden>✗ No lo sabía</button>
+      <button class="ok" id="rvYes" hidden>✓ Lo sabía</button>
+    </div>`;
+  $('rvSay').onclick = () => speak(revCard.f, a?.fl || 'es-MX', 0.9);
+  $('rvShow').onclick = () => { revShown = true; $('rvBack').hidden = false; $('rvShow').hidden = true; $('rvNo').hidden = $('rvYes').hidden = false; if (revCard.b) speak(revCard.b, a?.bl || 'es-MX', 0.95) };
+  $('rvNo').onclick = () => { grade(revCard, false); renderReview(); renderBadge(); checkNag() };
+  $('rvYes').onclick = () => { grade(revCard, true); renderReview(); renderBadge(); checkNag() };
+}
+$('goReview').onclick = () => goTab('repaso');
+$('addFromHoy').onclick = () => openLearn((run?.id) || plan.acts[0]?.id, false);
+
+let lmAct = null;
+function openLearn(id, complete){
+  const a = actById(id); if (!a) return; lmAct = id;
+  $('lmTitle').textContent = complete ? `¡Meta de ${a.name} cumplida!` : `¿Qué aprendiste en ${a.name}?`;
+  $('lmText').value = ''; $('lmText').placeholder = a.fl === 'ja-JP' ? 'ありがとう = Gracias' : a.fl === 'en-US' ? 'I used to = Yo solía' : 'LEFT JOIN = trae todo de la tabla izquierda';
+  $('learnModal').hidden = false; $('lmText').focus();
+}
+$('lmSave').onclick = () => { addCards(lmAct, $('lmText').value); $('learnModal').hidden = true };
+$('lmClose').onclick = () => $('learnModal').hidden = true;
+
+/* ================= Voz (TTS) ================= */
+let voices = [];
+const loadVoices = () => { try { voices = speechSynthesis.getVoices() } catch(e){} };
+loadVoices(); try { speechSynthesis.onvoiceschanged = loadVoices } catch(e){}
+function speak(text, lang, rate){
+  return new Promise(res => {
+    try {
+      const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate || 1;
+      const v = voices.find(v => v.lang === lang) || voices.find(v => v.lang?.replace('_','-').slice(0, 2) === lang.slice(0, 2)); if (v) u.voice = v;
+      const t = setTimeout(res, 2000 + text.length * 180);
+      u.onend = u.onerror = () => { clearTimeout(t); res() };
+      speechSynthesis.speak(u);
+    } catch(e){ res() }
+  });
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/* ================= Modo escucha ================= */
+let lsOn = false, lsQueue = [], lsGen = 0;
+function buildQueue(){
+  const act = $('lsAct').value, now = Date.now(), t0 = new Date(); t0.setHours(0,0,0,0);
+  const all = cardList().filter(c => !act || c.act === act);
+  const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
+  const due = all.filter(c => c.due <= now);
+  // Lo de hoy siempre; ayer la mitad de las veces; la semana 1 de cada 4; lo más viejo 1 de cada 10
+  const pick = all.filter(c => c.due > now).filter(c => {
+    const age = (t0 - c.created) / 86400000;
+    const w = c.created >= t0 ? 1 : age < 1 ? 0.5 : age < 7 ? 0.25 : 0.1;
+    return Math.random() < w;
+  });
+  return [...shuffle(due), ...shuffle(pick)];
+}
+async function lsLoop(gen){
+  let empty = 0;
+  while (lsOn && gen === lsGen){
+    if (!lsQueue.length) lsQueue = buildQueue();
+    if (!lsQueue.length){
+      if (!cardList().length || ++empty > 3){ $('lsCard').innerHTML = '<div class="f muted">No hay tarjetas para escuchar todavía.</div>'; lsStop(); return }
+      continue;
+    }
+    empty = 0;
+    const c = lsQueue.shift(), a = actById(c.act), rate = +$('lsRate').value, reps = +$('lsRep').value;
+    $('lsCard').innerHTML = `<div style="display:grid;gap:8px"><span><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || '')}</span></span><div class="f">${esc(c.f)}</div><div class="b">${esc(c.b)}</div></div>`;
+    $('lsInfo').textContent = `Quedan ${lsQueue.length} en esta vuelta. Al terminar se arma otra.`;
+    for (let i = 0; i < reps && lsOn && gen === lsGen; i++){
+      await speak(c.f, a?.fl || 'es-MX', rate);
+      if (!lsOn || gen !== lsGen) break;
+      await wait(+$('lsGap').value * 1000);
+      if (c.b && lsOn && gen === lsGen) await speak(c.b, a?.bl || 'es-MX', rate);
+      await wait(1200);
+    }
+  }
+}
+function lsStop(){ lsOn = false; lsGen++; try { speechSynthesis.cancel() } catch(e){} $('lsPlay').textContent = '▶ Reproducir' }
+$('lsPlay').onclick = () => {
+  if (lsOn){ lsStop(); return }
+  if (!window.speechSynthesis){ $('lsInfo').textContent = 'Este navegador no tiene voz. Prueba con Chrome o Safari.'; return }
+  lsOn = true; lsQueue = []; $('lsPlay').textContent = '⏸ Detener'; keepAwake(); lsLoop(++lsGen);
+};
+$('lsSkip').onclick = () => { if (!lsOn) return; lsGen++; try { speechSynthesis.cancel() } catch(e){} setTimeout(() => lsLoop(lsGen), 100) };
+$('lsAct').onchange = () => { lsQueue = [] };
+
+/* ================= Música (generada, sin voz) ================= */
+const SOUNDS = [
+  {id:'lluvia', name:'Lluvia', d:'Constante y suave'},
+  {id:'marron', name:'Ruido marrón', d:'Grave, tapa ruidos de casa'},
+  {id:'olas', name:'Olas', d:'Sube y baja lento'},
+  {id:'alfa', name:'Binaural alfa', d:'10 Hz · con audífonos'},
+  {id:'ambiente', name:'Ambiente', d:'Acordes largos y cálidos'}
+];
+let music = null, lastSound = null, master = null;
+$('sounds').innerHTML = SOUNDS.map(s => `<button data-snd="${s.id}">${s.name}<small>${s.d}</small></button>`).join('');
+$('sounds').onclick = e => { const b = e.target.closest('[data-snd]'); if (!b) return; music?.id === b.dataset.snd ? stopSound() : playSound(b.dataset.snd) };
+$('vol').oninput = () => { if (master) master.gain.value = +$('vol').value };
+function noiseBuf(c, kind){
+  const len = c.sampleRate * 4, buf = c.createBuffer(2, len, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++){
+    const d = buf.getChannelData(ch); let last = 0, b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < len; i++){
+      const w = Math.random() * 2 - 1;
+      if (kind === 'brown'){ last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5 }
+      else { b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.969*b2+w*.153852; b3=.8665*b3+w*.3104856; b4=.55*b4+w*.5329522; b5=-.7616*b5-w*.016898; d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6=w*.115926 }
+    }
+  }
+  return buf;
+}
+function playSound(id){
+  stopSound(); const c = ctx(); lastSound = id;
+  master = c.createGain(); master.gain.value = +$('vol').value; master.connect(c.destination);
+  const nodes = [];
+  const src = kind => { const s = c.createBufferSource(); s.buffer = noiseBuf(c, kind); s.loop = true; s.start(); nodes.push(s); return s };
+  const lfo = (freq, depth, target, base) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = freq; g.gain.value = depth; o.connect(g); g.connect(target); target.value = base; o.start(); nodes.push(o) };
+  if (id === 'lluvia'){
+    const s = src('pink'), hp = c.createBiquadFilter(), lp = c.createBiquadFilter(), g = c.createGain();
+    hp.type = 'highpass'; hp.frequency.value = 500; lp.type = 'lowpass'; lp.frequency.value = 6000; g.gain.value = 0.55;
+    s.connect(hp); hp.connect(lp); lp.connect(g); g.connect(master);
+  } else if (id === 'marron'){
+    const s = src('brown'), lp = c.createBiquadFilter(), g = c.createGain(); lp.type = 'lowpass'; lp.frequency.value = 900; g.gain.value = 0.8;
+    s.connect(lp); lp.connect(g); g.connect(master);
+  } else if (id === 'olas'){
+    const s = src('brown'), lp = c.createBiquadFilter(), g = c.createGain(); lp.type = 'lowpass';
+    s.connect(lp); lp.connect(g); g.connect(master);
+    lfo(0.08, 0.35, g.gain, 0.45); lfo(0.08, 500, lp.frequency, 800);
+  } else if (id === 'alfa'){
+    [[200, -1], [210, 1]].forEach(([f, p]) => {
+      const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f; g.gain.value = 0.18; o.connect(g);
+      if (c.createStereoPanner){ const pan = c.createStereoPanner(); pan.pan.value = p; g.connect(pan); pan.connect(master) } else g.connect(master);
+      o.start(); nodes.push(o);
+    });
+    const s = src('brown'), g2 = c.createGain(); g2.gain.value = 0.15; s.connect(g2); g2.connect(master);
+  } else if (id === 'ambiente'){
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1200; lp.connect(master);
+    [110, 164.81, 220, 277.18, 329.63].forEach((f, i) => {
+      const o = c.createOscillator(), g = c.createGain(); o.type = i % 2 ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (i - 2) * 4;
+      o.connect(g); g.connect(lp); o.start(); nodes.push(o); lfo(0.03 + i * 0.017, 0.05, g.gain, 0.07);
+    });
+  }
+  music = {id, nodes};
+  document.querySelectorAll('#sounds button').forEach(b => b.classList.toggle('on', b.dataset.snd === id));
+  renderTimer();
+}
+function stopSound(){
+  if (music){ music.nodes.forEach(n => { try { n.stop() } catch(e){} }); try { master.disconnect() } catch(e){} }
+  music = null; document.querySelectorAll('#sounds button').forEach(b => b.classList.remove('on')); renderTimer();
+}
+try { $('autoMusic').checked = localStorage.getItem('arranca-automusic') !== '0' } catch(e){ $('autoMusic').checked = true }
+$('autoMusic').onchange = () => { try { localStorage.setItem('arranca-automusic', $('autoMusic').checked ? '1' : '0') } catch(e){} };
+
+/* ================= Ajustes ================= */
+const LANGS = [['es-MX','Español'],['en-US','Inglés'],['ja-JP','Japonés']];
+function renderSettings(force){
+  if (!force && $('acts').contains(document.activeElement)) return;
+  $('nagMin').value = String(plan.nagMin || 5);
+  const lopt = v => LANGS.map(([k, n]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${n}</option>`).join('');
+  $('acts').innerHTML = plan.acts.map((a, i) => `<div class="card" style="background:var(--bg)" data-i="${i}">
+    <div class="row"><input type="color" data-k="color" value="${esc(a.color)}" style="width:44px;padding:2px" aria-label="Color">
+      <input class="grow" data-k="name" value="${esc(a.name)}" aria-label="Nombre"><button class="x" data-rm="${i}" aria-label="Quitar materia">✕</button></div>
+    <div class="row">
+      <label class="lbl grow">Hora lun–vie<input type="time" data-k="time" value="${esc(a.time)}"></label>
+      <label class="lbl grow">Minutos lun–vie<input type="number" min="5" step="5" data-k="mins" value="${a.mins}"></label>
+    </div>
+    <div class="row">
+      <label class="lbl grow">Hora sáb–dom<input type="time" data-k="timeWE" value="${esc(a.timeWE || a.time)}"></label>
+      <label class="lbl grow">Minutos sáb–dom<input type="number" min="5" step="5" data-k="minsWE" value="${a.minsWE || a.mins}"></label>
+    </div>
+    <label class="lbl">Enlace del curso<input type="url" data-k="link" value="${esc(a.link)}" placeholder="https://…"></label>
+    <div class="row">
+      <label class="lbl grow">Idioma del frente<select data-k="fl">${lopt(a.fl)}</select></label>
+      <label class="lbl grow">Idioma de la respuesta<select data-k="bl">${lopt(a.bl)}</select></label>
+    </div></div>`).join('');
+}
+$('acts').addEventListener('change', e => {
+  const box = e.target.closest('[data-i]'), k = e.target.dataset.k; if (!box || !k) return;
+  const a = plan.acts[+box.dataset.i]; a[k] = (k === 'mins' || k === 'minsWE') ? Math.max(5, +e.target.value || 5) : e.target.value.trim();
+  savePlan(); renderAll(true);
+});
+$('acts').addEventListener('click', e => {
+  const b = e.target.closest('[data-rm]'); if (!b) return;
+  const i = +b.dataset.rm;
+  if (b.dataset.sure){ plan.acts.splice(i, 1); savePlan(); renderAll(); renderSettings(true) }
+  else { b.dataset.sure = '1'; b.textContent = '¿Quitar?' }
+});
+$('addAct').onclick = () => { plan.acts.push({id: 'a' + Date.now().toString(36), name: 'Nueva materia', time: '17:00', mins: 30, timeWE: '17:00', minsWE: 30, link: '', color: '#f59e0b', fl: 'es-MX', bl: 'es-MX'}); savePlan(); renderAll(); renderSettings(true) };
+$('nagMin').onchange = () => { plan.nagMin = +$('nagMin').value; savePlan() };
+
+/* ================= Arranque ================= */
+function renderAll(keepSettings){
+  [ $('cAct'), $('lsAct') ].forEach(s => { const v = s.value; actOptions(s, s.id === 'lsAct'); if (v) s.value = v });
+  const fv = $('cFilter').value; actOptions($('cFilter'), true); $('cFilter').value = fv;
+  renderHoy(); renderCards(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
+}
+setInterval(() => {
+  const d = new Date();
+  $('clockNow').textContent = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'}) + ' · ' + nowHM();
+  tickRun(); renderTimer();
+}, 1000);
+setInterval(() => { checkNag(); renderBadge(); if (tab === 'hoy') renderHoy() }, 20000);
+window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} } });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+localLoad(); renderAll(); initSync();
+</script>
+</body>
+</html>
