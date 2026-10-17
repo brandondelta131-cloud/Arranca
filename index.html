@@ -121,6 +121,7 @@ details ol{padding-left:20px;margin:8px 0}
     <button data-tab="hoy" class="on">Hoy</button>
     <button data-tab="repaso">Repaso<span class="badge" id="dueBadge" hidden>0</span></button>
     <button data-tab="notas">Notas</button>
+    <button data-tab="practica">Práctica</button>
     <button data-tab="escuchar">Escuchar</button>
     <button data-tab="musica">Música</button>
     <button data-tab="bloqueo">Bloqueo</button>
@@ -202,6 +203,16 @@ details ol{padding-left:20px;margin:8px 0}
     <p class="muted small">Tu PC graba el audio de las clases y guarda el texto de las lecciones mientras estudias. Cada hora Claude lo resume por materia y crea tarjetas que entran solas a tu repaso.</p>
   </div>
   <div id="notesList" style="display:grid;gap:14px"></div>
+</section>
+
+<!-- PRÁCTICA -->
+<section class="tab" id="t-practica" hidden>
+  <div class="card">
+    <h2>Ejercicios de TripleTen</h2>
+    <p class="muted small">Claude te prepara ejercicios tipo examen con lo que viste en tus clases: consultas SQL, código de pandas e interpretación. Escribe tu respuesta y te corrige como un profesor.</p>
+    <div class="row"><button class="primary" id="exGen">Crear 5 ejercicios</button><span class="muted small" id="exMsg"></span></div>
+  </div>
+  <div id="exList" style="display:grid;gap:14px"></div>
 </section>
 
 <!-- ESCUCHAR -->
@@ -305,6 +316,15 @@ details ol{padding-left:20px;margin:8px 0}
     <div id="acctBody"></div>
   </div>
   <div class="card">
+    <h2>Foto de Lía</h2>
+    <p class="muted small">Aparece cuando la app te insiste, en las páginas bloqueadas y en las ventanas de la PC. Se guarda solo en tu cuenta privada.</p>
+    <div class="row">
+      <img data-lia hidden alt="Lía" style="width:72px;height:72px;object-fit:cover;border-radius:50%">
+      <label class="btn">Elegir foto<input type="file" id="liaFile" accept="image/*" hidden></label>
+    </div>
+    <p class="muted small" id="liaPrev"></p>
+  </div>
+  <div class="card">
     <h2>Tus materias y tiempos</h2>
     <p class="muted small">Cambia horas, minutos y el enlace de cada curso. Se guarda solo.</p>
     <div id="acts"></div>
@@ -352,15 +372,15 @@ const DEFAULT_PLAN = {
   ]
 };
 
-let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {};
+let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, lia = null;
 let act = {id: null, at: 0}; // bloque que corre ahora; el servidor no manda recordatorios mientras está fresco
 
 /* ================= Guardado local + sincronización ================= */
 const LKEY = 'arranca-app-v1';
 function localLoad(){
-  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {} } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; lia = s.lia || null } } catch(e){}
 }
-function snapshot(){ return {plan, planU, log, cards, notes, act} }
+function snapshot(){ return {plan, planU, log, cards, notes, exs, lia, act} }
 function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
@@ -369,13 +389,14 @@ function mergeState(a, b){
   out.plan = (b.planU || 0) > (a.planU || 0) ? b.plan : a.plan;
   out.planU = Math.max(a.planU || 0, b.planU || 0);
   out.act = ((b.act?.at || 0) > (a.act?.at || 0) ? b.act : a.act) || {id: null, at: 0};
+  out.lia = ((b.lia?.u || 0) > (a.lia?.u || 0) ? b.lia : a.lia) || null;
   out.log = {days:{}};
   for (const src of [a.log, b.log]) for (const [d, acts] of Object.entries(src?.days || {})){
     out.log.days[d] ||= {};
     for (const [k, m] of Object.entries(acts)) out.log.days[d][k] = Math.max(out.log.days[d][k] || 0, m);
   }
   const cutoff = Date.now() - 30 * 86400000;
-  for (const key of ['cards', 'notes']){
+  for (const key of ['cards', 'notes', 'exs']){
     out[key] = {};
     for (const src of [a[key], b[key]]) for (const [id, c] of Object.entries(src || {})){
       const cur = out[key][id];
@@ -405,7 +426,7 @@ async function sync(){
     for (const r of rows){ Object.assign(nuevo.cards, r.payload?.cards || {}); Object.assign(nuevo.notes, r.payload?.notes || {}) }
     const merged = mergeState(mergeState(snapshot(), nuevo), remote);
     const changedLocal = JSON.stringify(merged) !== JSON.stringify(snapshot());
-    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes;
+    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; lia = merged.lia; act = merged.act;
     try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){}
     if (JSON.stringify(merged) !== JSON.stringify(remote)){
       const { error: e2 } = await sb.from('arranca_state').upsert({user_id: uid, data: merged, updated_at: new Date().toISOString()});
@@ -672,7 +693,8 @@ function checkNag(force){
   const p = pendingBlock();
   if (p){
     box.className = 'nag'; box.hidden = false;
-    box.innerHTML = `<div style="flex:1;min-width:180px"><b>Te toca ${esc(p.name)}</b><br><span class="small">Desde las ${esc(tOf(p))}. Llevas ${Math.floor(doneMin(p.id))} de ${mOf(p)} min. No te voy a dejar en paz hasta que lo termines.</span></div>
+    box.innerHTML = (lia?.img ? `<img src="${lia.img}" alt="Lía" style="width:52px;height:52px;object-fit:cover;border-radius:50%;border:2px solid var(--accent-ink)">` : '') +
+      `<div style="flex:1;min-width:180px"><b>Te toca ${esc(p.name)}</b><br><span class="small">Desde las ${esc(tOf(p))}. Llevas ${Math.floor(doneMin(p.id))} de ${mOf(p)} min. Lía te necesita: no te voy a dejar en paz hasta que lo termines.</span></div>
       <button data-start="${esc(p.id)}">${run?.paused && run.id === p.id ? 'Continuar' : 'Empezar ya'}</button>`;
     if (activated && (force || now - lastNag >= (plan.nagMin || 5) * MIN)){ lastNag = now; chime(true); notify('Te toca ' + p.name, 'Llevas ' + Math.floor(doneMin(p.id)) + ' de ' + mOf(p) + ' min.') }
   } else if (due > 0){
@@ -708,7 +730,35 @@ function grade(c, ok){
   c = clone(c);
   c.step = ok ? Math.min(c.step + 1, LADDER.length - 1) : 0;
   c.due = Date.now() + LADDER[c.step] * MIN; c.reps = (c.reps || 0) + 1;
+  if (!ok) c.fails = (c.fails || 0) + 1;
   saveCard(c);
+  return c;
+}
+
+/* ================= Tutor (Claude en tu Supabase) ================= */
+const TUTOR_URL = SUPABASE_URL + '/functions/v1/bright-processor';
+async function tutor(datos){
+  if (!session) throw new Error('Entra con tu cuenta en Ajustes para usar el tutor');
+  const r = await fetch(TUTOR_URL, {method: 'POST', body: JSON.stringify(datos),
+    headers: {'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + session.access_token}});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('error ' + r.status));
+  return j;
+}
+
+/* ================= Micrófono (reconocimiento de voz del dispositivo) ================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function escucharVoz(lang){
+  return new Promise((res, rej) => {
+    if (!SR) return rej(new Error('Este navegador no reconoce voz. En iPhone usa Safari; en la PC, Chrome o Edge.'));
+    try { speechSynthesis.cancel() } catch(e){}
+    const r = new SR(); r.lang = lang; r.interimResults = false; r.maxAlternatives = 1;
+    let listo = false;
+    r.onresult = e => { listo = true; res(e.results[0][0].transcript) };
+    r.onerror = e => { listo = true; rej(new Error(e.error === 'not-allowed' ? 'Permite el micrófono para Arranca en los ajustes del navegador o del iPhone.' : e.error === 'no-speech' ? 'No te escuché. Toca otra vez y habla cerca del teléfono.' : e.error)) };
+    r.onend = () => { if (!listo) rej(new Error('No te escuché. Toca otra vez y habla cerca del teléfono.')) };
+    r.start();
+  });
 }
 function actOptions(sel, withAll){
   sel.innerHTML = (withAll ? '<option value="">Todas las materias</option>' : '') + plan.acts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
@@ -751,20 +801,69 @@ function renderReview(){
     $('revArea').innerHTML = `<div class="flash"><div><div class="f">Nada pendiente 🎉</div><div class="muted small">${next ? 'Siguiente repaso ' + whenTxt(next.due) : 'Agrega tarjetas abajo para empezar.'}</div></div></div>`;
     return;
   }
-  const a = actById(revCard.act);
+  const a = actById(revCard.act), fl = a?.fl || 'es-MX', bl = a?.bl || 'es-MX';
   $('revArea').innerHTML = `<div class="flash"><div style="display:grid;gap:8px">
       <span><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || '')}</span></span>
-      <div class="f" lang="${esc(a?.fl || 'es')}">${esc(revCard.f)}</div>
-      <div class="b" id="rvBack" hidden>${esc(revCard.b || '(sin respuesta)')}</div></div></div>
+      <div class="f" lang="${esc(fl)}">${esc(revCard.f)}</div>
+      <div class="b" id="rvBack" hidden>${esc(revCard.b || '(sin respuesta)')}</div>
+      ${revCard.exp ? `<div class="small muted" id="rvExp" hidden>💡 ${esc(revCard.exp)}</div>` : ''}</div></div>
     <div class="row" style="justify-content:center">
       <button id="rvSay">🔊 Escuchar</button>
+      <button id="rvMic">🎤 Responder en voz</button>
+      ${fl.startsWith('es') ? '' : '<button id="rvPron">🗣️ Pronunciar</button>'}
       <button class="primary" id="rvShow">Mostrar respuesta</button>
       <button id="rvNo" hidden>✗ No lo sabía</button>
       <button class="ok" id="rvYes" hidden>✓ Lo sabía</button>
-    </div>`;
-  $('rvSay').onclick = () => speak(revCard.f, a?.fl || 'es-MX', 0.9);
-  $('rvShow').onclick = () => { revShown = true; $('rvBack').hidden = false; $('rvShow').hidden = true; $('rvNo').hidden = $('rvYes').hidden = false; if (revCard.b) speak(revCard.b, a?.bl || 'es-MX', 0.95) };
-  $('rvNo').onclick = () => { grade(revCard, false); renderReview(); renderBadge(); checkNag() };
+    </div>
+    <div class="card" id="rvFb" hidden style="background:var(--bg)"></div>`;
+  const mostrar = () => { revShown = true; $('rvBack').hidden = false; if ($('rvExp')) $('rvExp').hidden = false; $('rvShow').hidden = true; $('rvNo').hidden = $('rvYes').hidden = false };
+  const fb = (html, tono) => { $('rvFb').hidden = false; $('rvFb').style.borderColor = tono === 'bien' ? 'var(--ok)' : tono === 'mal' ? 'var(--accent)' : 'var(--line)'; $('rvFb').innerHTML = html };
+  $('rvSay').onclick = () => speak(revCard.f, fl, 0.9);
+  $('rvShow').onclick = () => { mostrar(); if (revCard.b) speak(revCard.b, bl, 0.95) };
+  // Di el significado en voz alta y el tutor te dice si está bien
+  $('rvMic').onclick = async () => {
+    const c = revCard; revShown = true; // que la sincronización no redibuje la tarjeta mientras hablas
+    try {
+      fb('<b>🎤 Te escucho…</b> di qué significa.');
+      const dijo = await escucharVoz(bl);
+      fb(`Escuché: <i>"${esc(dijo)}"</i><br><span class="muted">Revisando…</span>`);
+      const r = await tutor({accion: 'oral', modo: 'significado', materia: a?.name || '', tarjeta: {f: c.f, b: c.b}, dijo});
+      mostrar();
+      fb(`<b>${r.correcto ? '✓ ¡Bien!' : r.calificacion === 'casi' ? '≈ Casi' : '✗ No exactamente'}</b> · Escuché: <i>"${esc(dijo)}"</i><br>${esc(r.comentario)}`, r.calificacion);
+      $(r.correcto ? 'rvYes' : 'rvNo').classList.add('primary');
+      speak(r.comentario, 'es-MX', +$('lsRate').value);
+    } catch(e){ fb('⚠️ ' + esc(e.message)) }
+  };
+  // Lee la tarjeta en voz alta y el tutor te corrige la pronunciación
+  if ($('rvPron')) $('rvPron').onclick = async () => {
+    const c = revCard; revShown = true;
+    try {
+      fb(`<b>🗣️ Te escucho…</b> lee en voz alta: <i>${esc(c.f)}</i>`);
+      const dijo = await escucharVoz(fl);
+      fb(`Escuché: <i>"${esc(dijo)}"</i><br><span class="muted">Revisando…</span>`);
+      const r = await tutor({accion: 'oral', modo: 'pronunciar', materia: a?.name || '', idioma: fl, tarjeta: {f: c.f, b: c.b}, dijo});
+      fb(`<b>${r.correcto ? '✓ Se entiende bien' : '✗ Hay que ajustar'}</b> · Escuché: <i>"${esc(dijo)}"</i><br>${esc(r.comentario)}`, r.calificacion);
+      await speak(r.comentario, 'es-MX', +$('lsRate').value);
+      await speak(c.f, fl, 0.8);  // modelo de cómo se dice
+    } catch(e){ fb('⚠️ ' + esc(e.message)) }
+  };
+  $('rvNo').onclick = async () => {
+    const c = grade(revCard, false); renderBadge(); checkNag();
+    // A partir del segundo fallo, una explicación distinta con un truco para recordarlo
+    if (c.fails >= 2 && !c.exp && session){
+      fb('<span class="muted">Ya van ' + c.fails + ' veces. Te preparo otra forma de recordarlo…</span>');
+      $('rvNo').hidden = $('rvYes').hidden = true;
+      try {
+        const r = await tutor({accion: 'explicar', materia: a?.name || '', tarjeta: {f: c.f, b: c.b}});
+        c.exp = r.explicacion + (r.ejemplo ? ' Ejemplo: ' + r.ejemplo : ''); saveCard(c);
+        fb(`<b>💡 Otra forma de verlo</b><br>${esc(r.explicacion)}${r.ejemplo ? `<br><i>${esc(r.ejemplo)}</i>` : ''}<div class="row" style="margin-top:8px"><button class="primary" id="rvNext">Siguiente</button></div>`);
+        $('rvNext').onclick = () => renderReview();
+        speak(r.explicacion, 'es-MX', +$('lsRate').value);
+        return;
+      } catch(e){}
+    }
+    renderReview();
+  };
   $('rvYes').onclick = () => { grade(revCard, true); renderReview(); renderBadge(); checkNag() };
 }
 $('goReview').onclick = () => goTab('repaso');
@@ -817,6 +916,72 @@ $('notesList').addEventListener('click', e => {
     else { d.dataset.sure = '1'; d.textContent = '¿Borrar nota?' }
   }
 });
+
+/* ================= Práctica (ejercicios de TripleTen) ================= */
+function renderExs(){
+  const list = Object.values(exs).filter(x => !x.del).sort((a, b) => b.created - a.created || a.n - b.n);
+  $('exList').innerHTML = list.length ? list.map(x => `<div class="card" data-ex="${esc(x.id)}">
+      <div class="row" style="justify-content:space-between"><span class="chip" style="background:#8b5cf6">${esc(x.tema)}</span>
+        <button class="x" data-exdel="${esc(x.id)}" aria-label="Quitar ejercicio">✕</button></div>
+      <p style="margin:0;white-space:pre-wrap">${esc(x.enunciado)}</p>
+      ${x.datos ? `<pre style="margin:0;padding:10px;background:var(--bg);border-radius:8px;overflow-x:auto;font-size:13px">${esc(x.datos)}</pre>` : ''}
+      <textarea data-exresp="${esc(x.id)}" placeholder="Escribe tu respuesta o tu código aquí" style="font-family:Consolas,monospace;font-size:14px">${esc(x.resp || '')}</textarea>
+      <div class="row"><button class="primary" data-exrev="${esc(x.id)}">Revisar</button><button data-exsol="${esc(x.id)}">Ver solución</button></div>
+      ${x.fb ? `<div class="small" style="border-left:3px solid ${x.fb.correcto ? 'var(--ok)' : 'var(--accent)'};padding-left:10px"><b>${x.fb.correcto ? '✓ Correcto' : x.fb.calificacion === 'casi' ? '≈ Casi' : '✗ Revisa esto'}</b><br>${esc(x.fb.comentario)}</div>` : ''}
+      <pre data-solbox="${esc(x.id)}" hidden style="margin:0;padding:10px;background:var(--bg);border-radius:8px;white-space:pre-wrap;font-size:13px">${esc(x.solucion)}</pre>
+    </div>`).join('')
+    : '<div class="card"><p class="muted small">Toca "Crear 5 ejercicios" para empezar. Mientras más clases resuma Claude, más se parecerán a lo que estás viendo.</p></div>';
+}
+$('exGen').onclick = async () => {
+  $('exGen').disabled = true; $('exMsg').textContent = 'Preparando ejercicios… (unos 20 segundos)';
+  try {
+    const recientes = Object.values(notes).filter(n => !n.del && (n.act === 'triple' || n.act === 'daxus')).sort((a, b) => b.created - a.created).slice(0, 8);
+    const contexto = recientes.map(n => `${n.titulo}: ${n.resumen} ${(n.puntos || []).join('; ')}`).join('\n');
+    const r = await tutor({accion: 'ejercicios', contexto});
+    const now = Date.now();
+    r.ejercicios.forEach((e, i) => { const id = 'x' + now.toString(36) + i; exs[id] = {id, n: i, ...e, created: now, u: now} });
+    persist(); renderExs(); $('exMsg').textContent = '';
+  } catch(e){ $('exMsg').textContent = '⚠️ ' + e.message }
+  $('exGen').disabled = false;
+};
+$('exList').addEventListener('input', e => { const t = e.target.closest('[data-exresp]'); if (t){ exs[t.dataset.exresp].resp = t.value } });
+$('exList').addEventListener('change', e => { const t = e.target.closest('[data-exresp]'); if (t){ exs[t.dataset.exresp].u = Date.now(); persist() } });
+$('exList').addEventListener('click', async e => {
+  const rev = e.target.closest('[data-exrev]'), sol = e.target.closest('[data-exsol]'), del = e.target.closest('[data-exdel]');
+  if (sol){ const b = document.querySelector(`[data-solbox="${sol.dataset.exsol}"]`); b.hidden = !b.hidden }
+  if (del){ exs[del.dataset.exdel] = {id: del.dataset.exdel, del: true, u: Date.now()}; persist(); renderExs() }
+  if (rev){
+    const x = exs[rev.dataset.exrev];
+    if (!(x.resp || '').trim()){ rev.textContent = 'Escribe primero tu respuesta'; return }
+    rev.disabled = true; rev.textContent = 'Revisando…';
+    try {
+      x.fb = await tutor({accion: 'corregir', ejercicio: {enunciado: x.enunciado, datos: x.datos, solucion: x.solucion}, respuesta: x.resp});
+      x.u = Date.now(); persist(); renderExs();
+    } catch(err){ rev.disabled = false; rev.textContent = '⚠️ ' + err.message }
+  }
+});
+
+/* ================= Foto de Lía ================= */
+function renderLia(){
+  const img = lia?.img;
+  document.querySelectorAll('[data-lia]').forEach(el => { el.hidden = !img; if (img) el.src = img });
+  if ($('liaPrev')) $('liaPrev').textContent = img ? 'Foto guardada. Aparece en los avisos de la app, en las páginas bloqueadas y en las ventanas de la PC.' : 'Aún no hay foto.';
+}
+function fotoLia(file){
+  const fr = new FileReader();
+  fr.onload = () => {
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 360 / Math.max(im.width, im.height));
+      const cv = document.createElement('canvas'); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+      cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+      lia = {img: cv.toDataURL('image/jpeg', 0.82), u: Date.now()};
+      persist(); renderLia();
+    };
+    im.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
 
 /* ================= Voz (TTS) ================= */
 let voices = [];
@@ -1023,8 +1188,9 @@ $('nagMin').onchange = () => { plan.nagMin = +$('nagMin').value; savePlan() };
 function renderAll(keepSettings){
   [ $('cAct'), $('lsAct') ].forEach(s => { const v = s.value; actOptions(s, s.id === 'lsAct'); if (v) s.value = v });
   const fv = $('cFilter').value; actOptions($('cFilter'), true); $('cFilter').value = fv;
-  renderHoy(); renderCards(); renderNotes(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
+  renderHoy(); renderCards(); renderNotes(); renderExs(); renderLia(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
 }
+$('liaFile').onchange = e => { const f = e.target.files?.[0]; if (f) fotoLia(f) };
 setInterval(() => {
   const d = new Date();
   $('clockNow').textContent = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'}) + ' · ' + nowHM();
