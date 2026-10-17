@@ -136,10 +136,10 @@ details ol{padding-left:20px;margin:8px 0}
     <div class="row"><button class="primary" data-go="ajustes">Ir a Ajustes</button></div>
   </div>
 
-  <div class="card" id="activate">
-    <h2>Activa los recordatorios</h2>
-    <p class="muted small">El navegador solo deja sonar alarmas después de un toque. Esto también mantiene la pantalla encendida mientras estudias.</p>
-    <div class="row"><button class="primary" id="activateBtn">Activar alarmas y pantalla</button></div>
+  <div class="card" id="pushCard" hidden>
+    <h2>Avisos con la app cerrada</h2>
+    <p class="muted small" id="pushText">Actívalo una sola vez y Arranca te avisará en este dispositivo cuando te toque estudiar, aunque la app esté cerrada.</p>
+    <div class="row"><button class="primary" id="pushBtn">Activar avisos</button></div>
   </div>
 
   <div class="card timer" id="timerCard" hidden>
@@ -353,13 +353,14 @@ const DEFAULT_PLAN = {
 };
 
 let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {};
+let act = {id: null, at: 0}; // bloque que corre ahora; el servidor no manda recordatorios mientras está fresco
 
 /* ================= Guardado local + sincronización ================= */
 const LKEY = 'arranca-app-v1';
 function localLoad(){
   try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {} } } catch(e){}
 }
-function snapshot(){ return {plan, planU, log, cards, notes} }
+function snapshot(){ return {plan, planU, log, cards, notes, act} }
 function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
@@ -367,6 +368,7 @@ function mergeState(a, b){
   const out = {};
   out.plan = (b.planU || 0) > (a.planU || 0) ? b.plan : a.plan;
   out.planU = Math.max(a.planU || 0, b.planU || 0);
+  out.act = ((b.act?.at || 0) > (a.act?.at || 0) ? b.act : a.act) || {id: null, at: 0};
   out.log = {days:{}};
   for (const src of [a.log, b.log]) for (const [d, acts] of Object.entries(src?.days || {})){
     out.log.days[d] ||= {};
@@ -430,8 +432,11 @@ async function initSync(){
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true}});
   const { data } = await sb.auth.getSession();
   session = data.session;
-  sb.auth.onAuthStateChange((_ev, s) => { session = s; renderAccount(); if (s) sync() });
-  renderAccount();
+  sb.auth.onAuthStateChange((_ev, s) => {
+    session = s; renderAccount(); renderPush();
+    if (s){ sync(); guardarSuscripcion(false).catch(() => {}) }  // sin pedir nada: renueva la suscripción si ya diste permiso
+  });
+  renderAccount(); renderPush();
   if (session) sync(); else setSync('', 'Guardado en este dispositivo. Entra en Ajustes para guardar en la nube.');
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync() });
@@ -514,16 +519,60 @@ async function notify(title, body){
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const reg = await navigator.serviceWorker?.getRegistration();
-    if (reg) reg.showNotification(title, {body, icon: 'icon-192.png', tag: 'arranca', renotify: true});
+    if (reg) reg.showNotification(title, {body, icon: 'icon-192.png', tag: 'arranca-bloque', renotify: true});
     else new Notification(title, {body});
   } catch(e){}
 }
 async function keepAwake(){ try { wakeLock = await navigator.wakeLock?.request('screen') } catch(e){} }
 document.addEventListener('visibilitychange', () => { if (activated && document.visibilityState === 'visible') keepAwake() });
-$('activateBtn').onclick = () => {
-  ctx(); chime(); keepAwake(); activated = true; $('activate').hidden = true;
-  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission() } catch(e){}
-  checkNag(true);
+// El navegador solo deja sonar después de un toque: el primer toque en cualquier parte activa sonido y pantalla
+function activar(){ if (activated) return; activated = true; ctx(); keepAwake(); checkNag(true) }
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, activar, {once: true, capture: true}));
+
+/* ================= Avisos push (llegan con la app cerrada) ================= */
+const VAPID_PUBLIC = 'BOIxL4uU50yHGh0Sz8zPJKfTTTFgxNRA9D0WGRAQ6rUWLgrTy7sxvd8tQyWYxkmL09SVeUlDWSj9BSj0QzJrwHE';
+const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const instalada = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushPosible = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function llaveBytes(b64){ const p = '='.repeat((4 - b64.length % 4) % 4); const s = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)) }
+async function guardarSuscripcion(pedir){
+  if (!sb || !session) return false;
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub){
+    if (!pedir && Notification.permission !== 'granted') return false;
+    sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: llaveBytes(VAPID_PUBLIC)});
+  }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Matamoros';
+  const { error } = await sb.from('arranca_push').upsert({endpoint: sub.endpoint, sub: sub.toJSON(), tz});
+  if (error) throw error;
+  try { localStorage.setItem('arranca-push', '1') } catch(e){}
+  return true;
+}
+function renderPush(){
+  const card = $('pushCard');
+  let hecho = false; try { hecho = localStorage.getItem('arranca-push') === '1' } catch(e){}
+  if (hecho && pushPosible && Notification.permission === 'granted'){ card.hidden = true; return }
+  card.hidden = false;
+  if (esIOS && !instalada){
+    $('pushText').textContent = 'En iPhone primero toca Compartir → "Agregar a pantalla de inicio" y abre Arranca desde ese ícono. Ahí aparece este botón.';
+    $('pushBtn').hidden = true; return;
+  }
+  if (!pushPosible){ $('pushText').textContent = 'Este navegador no permite avisos con la app cerrada. Usa Edge o Chrome en la PC, o Safari en el iPhone.'; $('pushBtn').hidden = true; return }
+  if (!session){ $('pushText').textContent = 'Primero entra con tu cuenta en Ajustes; después vuelve aquí y activa los avisos.'; $('pushBtn').hidden = true; return }
+  if (Notification.permission === 'denied'){ $('pushText').textContent = 'Bloqueaste las notificaciones de Arranca. Permítelas en los ajustes del navegador o del iPhone (Ajustes → Notificaciones → Arranca) y recarga.'; $('pushBtn').hidden = true; return }
+  $('pushText').textContent = 'Actívalo una sola vez y Arranca te avisará en este dispositivo cuando te toque estudiar, aunque la app esté cerrada.';
+  $('pushBtn').hidden = false;
+}
+$('pushBtn').onclick = async () => {
+  try {
+    const p = await Notification.requestPermission();
+    if (p !== 'granted'){ renderPush(); return }
+    $('pushText').textContent = 'Activando…';
+    await guardarSuscripcion(true);
+    $('pushText').textContent = 'Listo. Te avisaré aunque la app esté cerrada.';
+    setTimeout(renderPush, 2500);
+  } catch(e){ $('pushText').textContent = 'No se pudo activar: ' + (e.message || e) + '. Inténtalo de nuevo con internet.' }
 };
 
 /* ================= Hoy / cronómetro ================= */
@@ -540,11 +589,13 @@ function startBlock(id){
   const a = actById(id); if (!a) return;
   if (run && run.id === id){ if (run.paused) $('tPause').click(); return }
   run = {id, last: Date.now(), paused: false, notified: doneMin(id) >= mOf(a)};
-  if (!activated) $('activateBtn').click();
+  activar();
+  marcarEstudio(id); saveLog();
   if ($('autoMusic').checked && !music) playSound(lastSound || 'lluvia');
   renderHoy(); checkNag();
 }
-function stopBlock(){ if (!run) return; tickRun(); saveLog(); run = null; renderHoy(); checkNag() }
+function marcarEstudio(id){ act = {id, at: Date.now()} }
+function stopBlock(){ if (!run) return; tickRun(); marcarEstudio(null); saveLog(); run = null; renderHoy(); checkNag() }
 let lastFlush = Date.now();
 function tickRun(){
   if (!run || run.paused) return;
@@ -556,9 +607,14 @@ function tickRun(){
   if (a && !run.notified && log.days[d][run.id] >= mOf(a)){
     run.notified = true; chime(true); notify('¡Bloque completo!', a.name + ': anota lo que aprendiste.'); saveLog(); openLearn(a.id, true);
   }
-  if (now - lastFlush > MIN){ lastFlush = now; saveLog() }
+  if (now - lastFlush > MIN){ lastFlush = now; marcarEstudio(run.id); saveLog() }
 }
-$('tPause').onclick = () => { if (!run) return; if (run.paused){ run.paused = false; run.last = Date.now() } else { tickRun(); run.paused = true; saveLog() } renderTimer(); checkNag() };
+$('tPause').onclick = () => {
+  if (!run) return;
+  if (run.paused){ run.paused = false; run.last = Date.now(); marcarEstudio(run.id); saveLog() }
+  else { tickRun(); run.paused = true; marcarEstudio(null); saveLog() }
+  renderTimer(); checkNag();
+};
 $('tStop').onclick = () => { const id = run?.id; stopBlock(); if (id) openLearn(id, false) };
 $('tMusic').onclick = () => music ? stopSound() : playSound(lastSound || 'lluvia');
 
