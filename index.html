@@ -734,8 +734,9 @@ function renderNotes(){
   const byDate = {};
   for (const n of list) (byDate[n.date] ||= []).push(n);
   $('notesList').innerHTML = Object.entries(byDate).map(([d, ns]) => {
-    const fecha = new Date(d + 'T12:00').toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
-    return `<h2 style="font-size:16px;text-transform:capitalize">${esc(fecha)}</h2>` + ns.map(n => {
+    const f = new Date(d + 'T12:00').toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
+    const fecha = f.charAt(0).toUpperCase() + f.slice(1);
+    return `<h2 style="font-size:16px">${esc(fecha)}</h2>` + ns.map(n => {
       const a = actById(n.act), nCards = cardList().filter(c => c.auto && Math.abs(c.created - n.created) < 1000 && c.act === n.act).length;
       return `<div class="card">
         <div class="row" style="justify-content:space-between"><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || n.act)}</span>
