@@ -120,6 +120,7 @@ details ol{padding-left:20px;margin:8px 0}
   <nav class="tabs" id="tabs">
     <button data-tab="hoy" class="on">Hoy</button>
     <button data-tab="repaso">Repaso<span class="badge" id="dueBadge" hidden>0</span></button>
+    <button data-tab="notas">Notas</button>
     <button data-tab="escuchar">Escuchar</button>
     <button data-tab="musica">Música</button>
     <button data-tab="bloqueo">Bloqueo</button>
@@ -192,6 +193,15 @@ details ol{padding-left:20px;margin:8px 0}
       <select id="cFilter" style="width:auto"></select></div>
     <div class="list" id="cList"></div>
   </div>
+</section>
+
+<!-- NOTAS -->
+<section class="tab" id="t-notas" hidden>
+  <div class="card">
+    <h2>Notas de tus clases</h2>
+    <p class="muted small">Tu PC graba el audio de las clases y guarda el texto de las lecciones mientras estudias. Cada hora Claude lo resume por materia y crea tarjetas que entran solas a tu repaso.</p>
+  </div>
+  <div id="notesList" style="display:grid;gap:14px"></div>
 </section>
 
 <!-- ESCUCHAR -->
@@ -342,14 +352,14 @@ const DEFAULT_PLAN = {
   ]
 };
 
-let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {};
+let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {};
 
 /* ================= Guardado local + sincronización ================= */
 const LKEY = 'arranca-app-v1';
 function localLoad(){
-  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {} } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {} } } catch(e){}
 }
-function snapshot(){ return {plan, planU, log, cards} }
+function snapshot(){ return {plan, planU, log, cards, notes} }
 function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
@@ -362,13 +372,15 @@ function mergeState(a, b){
     out.log.days[d] ||= {};
     for (const [k, m] of Object.entries(acts)) out.log.days[d][k] = Math.max(out.log.days[d][k] || 0, m);
   }
-  out.cards = {};
   const cutoff = Date.now() - 30 * 86400000;
-  for (const src of [a.cards, b.cards]) for (const [id, c] of Object.entries(src || {})){
-    const cur = out.cards[id];
-    if (!cur || (c.u || 0) > (cur.u || 0)) out.cards[id] = c;
+  for (const key of ['cards', 'notes']){
+    out[key] = {};
+    for (const src of [a[key], b[key]]) for (const [id, c] of Object.entries(src || {})){
+      const cur = out[key][id];
+      if (!cur || (c.u || 0) > (cur.u || 0)) out[key][id] = c;
+    }
+    for (const [id, c] of Object.entries(out[key])) if (c.del && (c.u || 0) < cutoff) delete out[key][id];
   }
-  for (const [id, c] of Object.entries(out.cards)) if (c.del && (c.u || 0) < cutoff) delete out.cards[id];
   return out;
 }
 
@@ -384,13 +396,23 @@ async function sync(){
     const { data, error } = await sb.from('arranca_state').select('data').eq('user_id', uid).maybeSingle();
     if (error) throw error;
     const remote = data?.data || {};
-    const merged = mergeState(snapshot(), remote);
+    // Notas y tarjetas que dejó tu PC después de resumir tus clases
+    const inbox = await sb.from('arranca_inbox').select('id,payload').order('id');
+    const rows = inbox.error ? [] : (inbox.data || []);
+    const nuevo = {cards: {}, notes: {}};
+    for (const r of rows){ Object.assign(nuevo.cards, r.payload?.cards || {}); Object.assign(nuevo.notes, r.payload?.notes || {}) }
+    const merged = mergeState(mergeState(snapshot(), nuevo), remote);
     const changedLocal = JSON.stringify(merged) !== JSON.stringify(snapshot());
-    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards;
+    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes;
     try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){}
     if (JSON.stringify(merged) !== JSON.stringify(remote)){
       const { error: e2 } = await sb.from('arranca_state').upsert({user_id: uid, data: merged, updated_at: new Date().toISOString()});
       if (e2) throw e2;
+    }
+    if (rows.length){
+      await sb.from('arranca_inbox').delete().in('id', rows.map(r => r.id));
+      const nc = Object.keys(nuevo.cards).length, nn = Object.keys(nuevo.notes).length;
+      if (nc || nn){ chime(false); notify('Llegaron tus notas', `${nn} notas y ${nc} tarjetas nuevas de tus clases.`) }
     }
     lastSync = Date.now();
     setSync('on', 'Guardado en la nube · ' + nowHM());
@@ -702,6 +724,43 @@ function openLearn(id, complete){
 $('lmSave').onclick = () => { addCards(lmAct, $('lmText').value); $('learnModal').hidden = true };
 $('lmClose').onclick = () => $('learnModal').hidden = true;
 
+/* ================= Notas ================= */
+function renderNotes(){
+  const list = Object.values(notes).filter(n => !n.del).sort((a, b) => b.created - a.created);
+  if (!list.length){
+    $('notesList').innerHTML = '<div class="card"><p class="muted small">Todavía no hay notas. Aparecen aquí una hora después de tu primer bloque de estudio en la PC.</p></div>';
+    return;
+  }
+  const byDate = {};
+  for (const n of list) (byDate[n.date] ||= []).push(n);
+  $('notesList').innerHTML = Object.entries(byDate).map(([d, ns]) => {
+    const fecha = new Date(d + 'T12:00').toLocaleDateString('es-MX', {weekday: 'long', day: 'numeric', month: 'long'});
+    return `<h2 style="font-size:16px;text-transform:capitalize">${esc(fecha)}</h2>` + ns.map(n => {
+      const a = actById(n.act), nCards = cardList().filter(c => c.auto && Math.abs(c.created - n.created) < 1000 && c.act === n.act).length;
+      return `<div class="card">
+        <div class="row" style="justify-content:space-between"><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || n.act)}</span>
+          <span class="muted small">${new Date(n.created).toLocaleTimeString('es-MX', {hour: '2-digit', minute: '2-digit'})}${nCards ? ' · ' + nCards + ' tarjetas' : ''}</span></div>
+        <h2>${esc(n.titulo)}</h2>
+        <p style="margin:0">${esc(n.resumen)}</p>
+        ${n.puntos?.length ? `<ul style="margin:0;padding-left:20px">${n.puntos.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+        <div class="row"><button data-nsay="${esc(n.id)}">🔊 Escuchar</button><button class="x" data-ndel="${esc(n.id)}">Borrar</button></div>
+      </div>`;
+    }).join('');
+  }).join('');
+}
+$('notesList').addEventListener('click', e => {
+  const s = e.target.closest('[data-nsay]'), d = e.target.closest('[data-ndel]');
+  if (s){
+    const n = notes[s.dataset.nsay]; if (!n) return;
+    try { speechSynthesis.cancel() } catch(err){}
+    speak(n.titulo + '. ' + n.resumen + ' ' + (n.puntos || []).join('. '), 'es-MX', +$('lsRate').value);
+  }
+  if (d){
+    if (d.dataset.sure){ notes[d.dataset.ndel] = {id: d.dataset.ndel, del: true, u: Date.now()}; persist(); renderNotes() }
+    else { d.dataset.sure = '1'; d.textContent = '¿Borrar nota?' }
+  }
+});
+
 /* ================= Voz (TTS) ================= */
 let voices = [];
 const loadVoices = () => { try { voices = speechSynthesis.getVoices() } catch(e){} };
@@ -907,7 +966,7 @@ $('nagMin').onchange = () => { plan.nagMin = +$('nagMin').value; savePlan() };
 function renderAll(keepSettings){
   [ $('cAct'), $('lsAct') ].forEach(s => { const v = s.value; actOptions(s, s.id === 'lsAct'); if (v) s.value = v });
   const fv = $('cFilter').value; actOptions($('cFilter'), true); $('cFilter').value = fv;
-  renderHoy(); renderCards(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
+  renderHoy(); renderCards(); renderNotes(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
 }
 setInterval(() => {
   const d = new Date();
