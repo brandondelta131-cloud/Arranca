@@ -353,7 +353,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 15;
+const VERSION = 16;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -893,6 +893,7 @@ $('lmSave').onclick = () => { addCards(lmAct, $('lmText').value); $('learnModal'
 $('lmClose').onclick = () => $('learnModal').hidden = true;
 
 /* ================= Notas ================= */
+let notaGen = 0; // al tocar otra nota, la anterior deja de leerse
 function renderNotes(){
   const list = Object.values(notes).filter(n => !n.del).sort((a, b) => b.created - a.created);
   if (!list.length){
@@ -922,7 +923,10 @@ $('notesList').addEventListener('click', e => {
   if (s){
     const n = notes[s.dataset.nsay]; if (!n) return;
     callarVoz();
-    speak(n.titulo + '. ' + n.resumen + ' ' + (n.puntos || []).join('. '), 'es-MX', +$('lsRate').value);
+    // Por partes: cada una es corta (no se recorta) y se guarda aparte para escucharla sin internet
+    const partes = [n.titulo, n.resumen, ...(n.puntos || [])].filter(Boolean);
+    const gen = ++notaGen;
+    (async () => { for (const t of partes){ if (gen !== notaGen) return; await speak(t, 'es-MX', +$('lsRate').value); await wait(400) } })();
   }
   if (d){
     if (d.dataset.sure){ notes[d.dataset.ndel] = {id: d.dataset.ndel, del: true, u: Date.now()}; persist(); renderNotes() }
