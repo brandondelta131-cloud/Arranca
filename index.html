@@ -1073,7 +1073,7 @@ function callarVoz(){
   if (finVoz){ const f = finVoz; finVoz = null; f() }
 }
 async function audioDe(text, lang){
-  const llave = 'https://arranca.voz/' + lang.slice(0, 2) + '/' + encodeURIComponent(text);
+  const llave = 'https://arranca.voz/v2/' + lang.slice(0, 2) + '/' + encodeURIComponent(text);
   let cache = null; try { cache = await caches.open('arranca-voz') } catch(e){}
   const guardado = cache && await cache.match(llave);
   if (guardado) return guardado.blob();
