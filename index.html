@@ -240,6 +240,8 @@ details ol{padding-left:20px;margin:8px 0}
     <p class="muted small">Elige la voz más natural que tenga tu dispositivo. Las mejores dicen <b>Natural</b>, <b>Premium</b>, <b>Mejorada</b> o <b>Siri</b> en el nombre.</p>
     <label class="row small"><input type="checkbox" id="vozNube" style="width:auto" checked> <b>Voz natural de internet</b> (Aria, Nanami y Dalia). Si no hay internet ni copia guardada, usa la del dispositivo.</label>
     <p class="muted small" id="vozNubeInfo"></p>
+    <p class="small" id="vozUltima" style="font-weight:700"></p>
+    <div class="row"><button id="vozBorrar">Borrar audios guardados</button><span class="muted small" id="verApp"></span></div>
     <div id="voicePickers" style="display:grid;gap:10px"></div>
     <details><summary>Cómo conseguir voces que suenan como persona</summary><ol class="small">
       <li><b>iPhone:</b> Ajustes → Accesibilidad → Contenido leído → Voces. En cada idioma (Inglés, Japonés, Español) <b>toca la voz Mejorada o Premium</b> que descargaste para que quede marcada con ✓. Apple no deja que las páginas web elijan esas voces directamente, así que en Arranca deja <b>"Voz del iPhone (la de Ajustes)"</b>: así usa la que marcaste.</li>
@@ -351,6 +353,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
+const VERSION = 14;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -1031,6 +1034,7 @@ const VOICE_LANGS = [['en-US', 'Inglés', 'Hello! This is how I will read your E
 function renderVoices(){
   const box = $('voicePickers'); if (!box) return;
   $('vozNube').checked = vozNube();
+  $('verApp').textContent = 'Versión ' + VERSION + (session ? ' · conectado' : ' · SIN SESIÓN: entra en Ajustes');
   $('vozNubeInfo').textContent = vozNube() ? 'Las voces de abajo solo se usan como respaldo.' : '';
   if (box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; // no redibujar mientras eliges
   box.innerHTML = VOICE_LANGS.map(([lang, name]) => {
@@ -1041,6 +1045,8 @@ function renderVoices(){
       <button data-vtest="${lang}">Probar</button></div>`;
   }).join('') + `<p class="muted small">${voices.length} voces encontradas en este dispositivo. Tu elección se guarda en tu cuenta.</p>`;
 }
+$('vozBorrar').onclick = borrarAudios;
+$('verApp').textContent = 'Versión ' + VERSION + (session ? '' : ' · sin sesión');
 $('vozNube').onchange = () => { voces = clone(voces || {}); voces.nube = $('vozNube').checked; voces.u = Date.now(); persist() };
 $('voicePickers').addEventListener('change', e => {
   const s = e.target.closest('[data-vlang]'); if (!s) return;
@@ -1085,6 +1091,8 @@ async function audioDe(text, lang){
   if (cache) try { await cache.put(llave, new Response(blob, {headers: {'Content-Type': 'audio/mpeg'}})) } catch(e){}
   return blob;
 }
+function vozUsada(t){ const el = $('vozUltima'); if (el) el.textContent = 'Última lectura: ' + t }
+async function borrarAudios(){ try { await caches.delete('arranca-voz') } catch(e){} $('vozUltima').textContent = 'Audios guardados borrados. Se vuelven a descargar al escucharlos.' }
 async function speak(text, lang, rate){
   if (!text) return;
   if (vozNube()){
@@ -1098,9 +1106,10 @@ async function speak(text, lang, rate){
         audioVoz.play().catch(() => { if (finVoz === res){ finVoz = null; res() } });
       });
       URL.revokeObjectURL(url);
+      vozUsada('Voz natural ✓');
       return;
-    } catch(e){ /* sin internet y sin copia guardada, o Azure sin configurar: usar la voz del dispositivo */ }
-  }
+    } catch(e){ vozUsada('Voz del teléfono (respaldo) · motivo: ' + (e.message || e)) }
+  } else vozUsada('Voz del teléfono (la natural está apagada)');
   return hablarDispositivo(text, lang, rate);
 }
 // En iPhone el audio solo puede sonar después de un toque: el primer toque "desbloquea" el reproductor con un silencio
