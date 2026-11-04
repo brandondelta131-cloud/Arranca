@@ -353,7 +353,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 14;
+const VERSION = 15;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -754,16 +754,22 @@ async function tutor(datos){
 }
 
 /* ================= Micrófono (reconocimiento de voz del dispositivo) ================= */
+// En iPhone, si la app queda en modo "micrófono", el Bluetooth del carro lo toma como llamada y el audio casi no se oye.
+// Por eso la sesión de audio es de "reproducción" (como música) y solo cambia a micrófono mientras te escucha.
+function sesionAudio(tipo){ try { if (navigator.audioSession) navigator.audioSession.type = tipo } catch(e){} }
+sesionAudio('playback');
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 function escucharVoz(lang){
   return new Promise((res, rej) => {
     if (!SR) return rej(new Error('Este navegador no reconoce voz. En iPhone usa Safari; en la PC, Chrome o Edge.'));
     callarVoz();
+    sesionAudio('play-and-record');
     const r = new SR(); r.lang = lang; r.interimResults = false; r.maxAlternatives = 1;
     let listo = false;
-    r.onresult = e => { listo = true; res(e.results[0][0].transcript) };
-    r.onerror = e => { listo = true; rej(new Error(e.error === 'not-allowed' ? 'Permite el micrófono para Arranca en los ajustes del navegador o del iPhone.' : e.error === 'no-speech' ? 'No te escuché. Toca otra vez y habla cerca del teléfono.' : e.error)) };
-    r.onend = () => { if (!listo) rej(new Error('No te escuché. Toca otra vez y habla cerca del teléfono.')) };
+    const soltar = () => { try { r.abort() } catch(e){} setTimeout(() => sesionAudio('playback'), 300) };
+    r.onresult = e => { listo = true; soltar(); res(e.results[0][0].transcript) };
+    r.onerror = e => { listo = true; soltar(); rej(new Error(e.error === 'not-allowed' ? 'Permite el micrófono para Arranca en los ajustes del navegador o del iPhone.' : e.error === 'no-speech' ? 'No te escuché. Toca otra vez y habla cerca del teléfono.' : e.error)) };
+    r.onend = () => { sesionAudio('playback'); if (!listo) rej(new Error('No te escuché. Toca otra vez y habla cerca del teléfono.')) };
     r.start();
   });
 }
@@ -1102,7 +1108,7 @@ async function speak(text, lang, rate){
       await new Promise(res => {
         finVoz = res;
         audioVoz.onended = audioVoz.onerror = () => { if (finVoz === res){ finVoz = null; res() } };
-        audioVoz.src = url; audioVoz.playbackRate = rate || 1;
+        sesionAudio('playback'); audioVoz.src = url; audioVoz.playbackRate = rate || 1;
         audioVoz.play().catch(() => { if (finVoz === res){ finVoz = null; res() } });
       });
       URL.revokeObjectURL(url);
@@ -1170,7 +1176,7 @@ async function lsLoop(gen){
   }
 }
 function lsStop(){ lsOn = false; lsGen++; callarVoz(); $('lsPlay').textContent = '▶ Reproducir'; $('drive').hidden = true }
-$('driveBtn').onclick = () => { $('drive').hidden = false; if (!lsOn) $('lsPlay').click() };
+$('driveBtn').onclick = () => { sesionAudio('playback'); $('drive').hidden = false; if (!lsOn) $('lsPlay').click() };
 $('drStop').onclick = () => lsStop();
 try { $('lsTutor').checked = localStorage.getItem('arranca-tutor') !== '0' } catch(e){}
 $('lsTutor').onchange = () => { try { localStorage.setItem('arranca-tutor', $('lsTutor').checked ? '1' : '0') } catch(e){} };
