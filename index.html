@@ -208,6 +208,25 @@ details ol{padding-left:20px;margin:8px 0}
 <!-- PRÁCTICA -->
 <section class="tab" id="t-practica" hidden>
   <div class="card">
+    <h2>🗣️ Conversación</h2>
+    <p class="muted small">Habla con Claude en inglés o japonés. Te responde en voz alta, te dice qué significa y te corrige lo que dijiste.</p>
+    <div class="row">
+      <label class="lbl grow">Idioma<select id="cvLang"><option value="en-US">Inglés</option><option value="ja-JP">Japonés</option></select></label>
+      <label class="lbl grow">Escenario<select id="cvEsc">
+        <option>Pedir algo en una cafetería</option><option>Presentarte en una entrevista de trabajo</option>
+        <option>Platicar de tu día</option><option>Preguntar cómo llegar a un lugar</option>
+        <option>Hablar de tu familia</option><option>Hacer compras en una tienda</option></select></label>
+    </div>
+    <div id="cvChat" style="display:grid;gap:8px"></div>
+    <div class="row">
+      <button class="primary" id="cvMic">🎤 Hablar</button>
+      <input id="cvTxt" class="grow" placeholder="o escribe tu respuesta">
+      <button id="cvSend">Enviar</button>
+      <button class="ghost" id="cvNew">Empezar de nuevo</button>
+    </div>
+    <p class="muted small" id="cvInfo">Toca 🎤 Hablar o "Empezar de nuevo" para iniciar.</p>
+  </div>
+  <div class="card">
     <h2>Ejercicios de TripleTen</h2>
     <p class="muted small">Claude te prepara ejercicios tipo examen con lo que viste en tus clases: consultas SQL, código de pandas e interpretación. Escribe tu respuesta y te corrige como un profesor.</p>
     <div class="row"><button class="primary" id="exGen">Crear 5 ejercicios</button><span class="muted small" id="exMsg"></span></div>
@@ -217,6 +236,12 @@ details ol{padding-left:20px;margin:8px 0}
 
 <!-- ESCUCHAR -->
 <section class="tab" id="t-escuchar" hidden>
+  <div class="card">
+    <h2>🎧 Podcast de hoy</h2>
+    <p class="muted small">Un repaso hablado de unos 5 minutos con lo que estudiaste, como si un maestro te lo platicara. Ideal para el camino al trabajo.</p>
+    <div class="row"><button class="primary" id="pcPlay">▶ Escuchar podcast</button><button id="pcNuevo">Crear otro</button></div>
+    <p class="muted small" id="pcInfo"></p>
+  </div>
   <div class="card">
     <h2>Modo escucha</h2>
     <p class="muted small">Lee en voz alta tus tarjetas en bucle: primero las que tocan, luego todo lo de hoy, lo de ayer con menos frecuencia y lo anterior de vez en cuando. Sirve con audífonos mientras caminas o vas al trabajo.</p>
@@ -353,7 +378,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 16;
+const VERSION = 17;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -377,15 +402,15 @@ const DEFAULT_PLAN = {
   ]
 };
 
-let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, lia = null, voces = null;
+let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, pods = {}, lia = null, voces = null;
 let act = {id: null, at: 0}; // bloque que corre ahora; el servidor no manda recordatorios mientras está fresco
 
 /* ================= Guardado local + sincronización ================= */
 const LKEY = 'arranca-app-v1';
 function localLoad(){
-  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; lia = s.lia || null; voces = s.voces || null } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; pods = s.pods || {}; lia = s.lia || null; voces = s.voces || null } } catch(e){}
 }
-function snapshot(){ return {plan, planU, log, cards, notes, exs, lia, voces, act} }
+function snapshot(){ return {plan, planU, log, cards, notes, exs, pods, lia, voces, act} }
 function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
@@ -403,7 +428,7 @@ function mergeState(a, b){
     for (const [k, m] of Object.entries(acts)) out.log.days[d][k] = Math.max(out.log.days[d][k] || 0, m);
   }
   const cutoff = Date.now() - 30 * 86400000;
-  for (const key of ['cards', 'notes', 'exs']){
+  for (const key of ['cards', 'notes', 'exs', 'pods']){
     out[key] = {};
     for (const src of [a[key], b[key]]) for (const [id, c] of Object.entries(src || {})){
       const cur = out[key][id];
@@ -433,7 +458,7 @@ async function sync(){
     for (const r of rows){ Object.assign(nuevo.cards, r.payload?.cards || {}); Object.assign(nuevo.notes, r.payload?.notes || {}) }
     const merged = mergeState(mergeState(snapshot(), nuevo), remote);
     const changedLocal = JSON.stringify(merged) !== JSON.stringify(snapshot());
-    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; lia = merged.lia; voces = merged.voces; act = merged.act;
+    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; pods = merged.pods; lia = merged.lia; voces = merged.voces; act = merged.act;
     try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){}
     if (JSON.stringify(merged) !== JSON.stringify(remote)){
       const { error: e2 } = await sb.from('arranca_state').upsert({user_id: uid, data: merged, updated_at: new Date().toISOString()});
@@ -521,7 +546,7 @@ $('tabs').onclick = e => {
   document.querySelectorAll('section.tab').forEach(s => s.hidden = s.id !== 't-' + tab);
   if (tab === 'repaso') renderReview();
   if (tab === 'ajustes') renderSettings(true);
-  if (tab === 'escuchar'){ loadVoices(); renderVoices() }
+  if (tab === 'escuchar'){ loadVoices(); renderVoices(); infoPodcast() }
   window.scrollTo(0, 0);
 };
 function goTab(t){ document.querySelector(`#tabs button[data-tab="${t}"]`).click() }
@@ -733,14 +758,38 @@ function addCards(act, text){
   renderCards(); renderBadge(); checkNag();
   return n;
 }
-function grade(c, ok){
+/* Repaso inteligente: el primer día se repite mucho (10 min, 30 min, 1 h, 3 h, 6 h); después cada tarjeta
+   tiene su propia "facilidad": las que siempre sabes se espacian más rápido y las difíciles regresan antes. */
+const PASOS_HOY = 5;               // los primeros 5 escalones de LADDER son del mismo día
+const DIA = 1440;                  // minutos
+function grade(c, ok, facil){
   c = clone(c);
-  c.step = ok ? Math.min(c.step + 1, LADDER.length - 1) : 0;
-  c.due = Date.now() + LADDER[c.step] * MIN; c.reps = (c.reps || 0) + 1;
-  if (!ok) c.fails = (c.fails || 0) + 1;
+  c.reps = (c.reps || 0) + 1;
+  c.ease = c.ease || 2.5;
+  // Tarjetas antiguas ya graduadas que no tenían intervalo propio
+  if (!c.ivl && c.step >= PASOS_HOY) c.ivl = Math.max(1, Math.round(LADDER[Math.min(c.step, LADDER.length - 1)] / DIA));
+  let espera;
+  if (!ok){
+    c.fails = (c.fails || 0) + 1;
+    c.ease = Math.max(1.3, c.ease - 0.2);
+    c.step = 0; c.ivl = 0;          // vuelve a repetirse varias veces hoy
+    espera = LADDER[0];
+  } else if (c.step < PASOS_HOY && !facil){
+    c.step += 1;
+    if (c.step < PASOS_HOY) espera = LADDER[c.step];
+    else { c.ivl = 1; espera = DIA }  // se gradúa: mañana
+  } else {
+    if (facil) c.ease = Math.min(3.2, c.ease + 0.15);
+    const base = c.ivl || 1;
+    c.ivl = !c.ivl && facil ? 4 : Math.max(base + 1, Math.round(base * c.ease * (facil ? 1.3 : 1)));
+    c.step = Math.max(c.step, PASOS_HOY);
+    espera = c.ivl * DIA;
+  }
+  c.due = Date.now() + espera * MIN;
   saveCard(c);
   return c;
 }
+const nivelTxt = c => c.ivl ? `cada ${c.ivl} día${c.ivl > 1 ? 's' : ''}` : (c.step || 0) < PASOS_HOY ? `aprendiendo ${(c.step || 0) + 1}/${PASOS_HOY}` : 'cada día';
 
 /* ================= Tutor (Claude en tu Supabase) ================= */
 const TUTOR_URL = SUPABASE_URL + '/functions/v1/bright-processor';
@@ -788,7 +837,7 @@ function renderCards(){
   $('cList').innerHTML = list.length ? list.map(c => {
     const a = actById(c.act);
     return `<div class="li"><div class="t"><b>${esc(c.f)}</b>${c.b ? ' = ' + esc(c.b) : ''}<br>
-      <span class="small muted"><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || c.act)}</span> próximo repaso ${whenTxt(c.due)} · nivel ${c.step + 1}/${LADDER.length}</span></div>
+      <span class="small muted"><span class="chip" style="background:${esc(a?.color || '#888')}">${esc(a?.name || c.act)}</span> próximo repaso ${whenTxt(c.due)} · ${nivelTxt(c)}</span></div>
       <button class="x" data-del="${esc(c.id)}" aria-label="Borrar tarjeta">✕</button></div>`;
   }).join('') : '<p class="muted small">Aún no tienes tarjetas. Escribe arriba lo que viste hoy, una idea por línea.</p>';
   if (tab === 'repaso' && !revShown) renderReview();
@@ -827,9 +876,10 @@ function renderReview(){
       <button class="primary" id="rvShow">Mostrar respuesta</button>
       <button id="rvNo" hidden>✗ No lo sabía</button>
       <button class="ok" id="rvYes" hidden>✓ Lo sabía</button>
+      <button id="rvEasy" hidden>⚡ Fácil</button>
     </div>
     <div class="card" id="rvFb" hidden style="background:var(--bg)"></div>`;
-  const mostrar = () => { revShown = true; $('rvBack').hidden = false; if ($('rvExp')) $('rvExp').hidden = false; $('rvShow').hidden = true; $('rvNo').hidden = $('rvYes').hidden = false };
+  const mostrar = () => { revShown = true; $('rvBack').hidden = false; if ($('rvExp')) $('rvExp').hidden = false; $('rvShow').hidden = true; $('rvNo').hidden = $('rvYes').hidden = $('rvEasy').hidden = false };
   const fb = (html, tono) => { $('rvFb').hidden = false; $('rvFb').style.borderColor = tono === 'bien' ? 'var(--ok)' : tono === 'mal' ? 'var(--accent)' : 'var(--line)'; $('rvFb').innerHTML = html };
   $('rvSay').onclick = () => speak(revCard.f, fl, 0.9);
   $('rvShow').onclick = () => { mostrar(); if (revCard.b) speak(revCard.b, bl, 0.95) };
@@ -865,7 +915,7 @@ function renderReview(){
     // A partir del segundo fallo, una explicación distinta con un truco para recordarlo
     if (c.fails >= 2 && !c.exp && session){
       fb('<span class="muted">Ya van ' + c.fails + ' veces. Te preparo otra forma de recordarlo…</span>');
-      $('rvNo').hidden = $('rvYes').hidden = true;
+      $('rvNo').hidden = $('rvYes').hidden = $('rvEasy').hidden = true;
       try {
         const r = await tutor({accion: 'explicar', materia: a?.name || '', tarjeta: {f: c.f, b: c.b}});
         c.exp = r.explicacion + (r.ejemplo ? ' Ejemplo: ' + r.ejemplo : ''); saveCard(c);
@@ -878,6 +928,7 @@ function renderReview(){
     renderReview();
   };
   $('rvYes').onclick = () => { grade(revCard, true); renderReview(); renderBadge(); checkNag() };
+  $('rvEasy').onclick = () => { grade(revCard, true, true); renderReview(); renderBadge(); checkNag() };
 }
 $('goReview').onclick = () => goTab('repaso');
 $('addFromHoy').onclick = () => openLearn((run?.id) || plan.acts[0]?.id, false);
@@ -977,6 +1028,88 @@ $('exList').addEventListener('click', async e => {
     } catch(err){ rev.disabled = false; rev.textContent = '⚠️ ' + err.message }
   }
 });
+
+/* ================= Podcast diario ================= */
+let pcGen = 0;
+const pcId = () => 'p' + today();
+function infoPodcast(){
+  const p = pods[pcId()];
+  $('pcInfo').textContent = p && !p.del ? `Listo: "${p.titulo}" · ${p.partes.length} partes. Se guarda para escucharlo sin internet.` : 'Se crea con tus notas de hoy (o de los últimos días si hoy no hay).';
+}
+async function crearPodcast(){
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  let ns = Object.values(notes).filter(n => !n.del && n.created >= t0.getTime());
+  if (!ns.length) ns = Object.values(notes).filter(n => !n.del && n.created >= t0.getTime() - 3 * 86400000);
+  if (!ns.length) throw new Error('Todavía no hay notas para hacer el podcast. Estudia un bloque en la PC primero.');
+  const notas = ns.map(n => `${actById(n.act)?.name || n.act} · ${n.titulo}: ${n.resumen} ${(n.puntos || []).join('; ')}`).join(' | ');
+  const dificiles = cardList().filter(c => (c.fails || 0) >= 2).slice(0, 10).map(c => `${c.f} = ${c.b}`).join(' | ');
+  $('pcInfo').textContent = 'Escribiendo tu podcast… (unos 30 segundos)';
+  const r = await tutor({accion: 'podcast', notas, dificiles});
+  const id = pcId();
+  pods[id] = {id, date: today(), titulo: r.titulo, partes: r.partes, created: Date.now(), u: Date.now()};
+  persist(); infoPodcast();
+  r.partes.forEach(t => audioDe(t, 'es-MX').catch(() => {}));  // descargar el audio desde ya, para el carro
+  return pods[id];
+}
+async function reproducirPodcast(){
+  let p = pods[pcId()];
+  try { if (!p || p.del) p = await crearPodcast() } catch(e){ $('pcInfo').textContent = '⚠️ ' + e.message; return }
+  lsStop(); const gen = ++pcGen;
+  sesionAudio('playback'); keepAwake();
+  $('drive').hidden = false; $('drF').textContent = p.titulo;
+  for (let i = 0; i < p.partes.length && gen === pcGen; i++){
+    $('drB').textContent = `Parte ${i + 1} de ${p.partes.length}`;
+    await speak(p.partes[i], 'es-MX', +$('lsRate').value);
+    await wait(500);
+  }
+  if (gen === pcGen) $('drive').hidden = true;
+}
+$('pcPlay').onclick = reproducirPodcast;
+$('pcNuevo').onclick = async () => { try { await crearPodcast() } catch(e){ $('pcInfo').textContent = '⚠️ ' + e.message } };
+
+/* ================= Conversación ================= */
+let cvHist = [], cvOcupado = false;
+function renderChat(){
+  const lang = $('cvLang').value;
+  $('cvChat').innerHTML = cvHist.map((m, i) => m.rol === 'yo'
+    ? `<div style="justify-self:end;max-width:85%;background:var(--soft);border-radius:12px;padding:8px 12px">${esc(m.texto)}
+        ${m.correccion ? `<div class="small" style="margin-top:4px;color:var(--warn)">✏️ ${esc(m.correccion)}</div>` : ''}</div>`
+    : `<div style="max-width:90%;border:1px solid var(--line);border-radius:12px;padding:8px 12px">
+        <div lang="${lang}" style="font-size:18px;font-weight:700">${esc(m.texto)} <button class="x" data-cvsay="${i}" aria-label="Escuchar otra vez">🔊</button></div>
+        ${m.lectura ? `<div class="small muted">${esc(m.lectura)}</div>` : ''}
+        <div class="small muted">${esc(m.traduccion || '')}</div></div>`).join('');
+}
+async function turnoCv(dijo){
+  if (cvOcupado) return; cvOcupado = true;
+  const lang = $('cvLang').value;
+  if (dijo) cvHist.push({rol: 'yo', texto: dijo});
+  renderChat(); $('cvInfo').textContent = 'Pensando…';
+  try {
+    const r = await tutor({accion: 'conversa', idioma: lang, escenario: $('cvEsc').value,
+      historial: cvHist.map(m => ({rol: m.rol, texto: m.texto}))});
+    const mio = [...cvHist].reverse().find(m => m.rol === 'yo');
+    if (mio && r.correccion) mio.correccion = r.correccion;
+    cvHist.push({rol: 'tutor', texto: r.respuesta, lectura: r.lectura, traduccion: r.traduccion});
+    renderChat(); $('cvInfo').textContent = 'Toca 🎤 Hablar para responder.';
+    if (mio && r.correccion) await speak(r.correccion, 'es-MX', 1);
+    await speak(r.respuesta, lang, 0.95);
+  } catch(e){ $('cvInfo').textContent = '⚠️ ' + e.message }
+  cvOcupado = false;
+}
+$('cvNew').onclick = () => { cvHist = []; turnoCv() };
+$('cvMic').onclick = async () => {
+  if (!cvHist.length){ turnoCv(); return }
+  try { $('cvInfo').textContent = '🎤 Te escucho…'; const dijo = await escucharVoz($('cvLang').value); turnoCv(dijo) }
+  catch(e){ $('cvInfo').textContent = '⚠️ ' + e.message }
+};
+$('cvSend').onclick = () => {
+  const t = $('cvTxt').value.trim(); if (!t) return;
+  $('cvTxt').value = '';
+  turnoCv(t);
+};
+$('cvTxt').onkeydown = e => { if (e.key === 'Enter') $('cvSend').click() };
+$('cvLang').onchange = $('cvEsc').onchange = () => { cvHist = []; renderChat(); $('cvInfo').textContent = 'Toca 🎤 Hablar o "Empezar de nuevo" para iniciar.' };
+$('cvChat').addEventListener('click', e => { const b = e.target.closest('[data-cvsay]'); if (b) speak(cvHist[+b.dataset.cvsay].texto, $('cvLang').value, 0.9) });
 
 /* ================= Foto de Lía ================= */
 function renderLia(){
@@ -1179,7 +1312,7 @@ async function lsLoop(gen){
     }
   }
 }
-function lsStop(){ lsOn = false; lsGen++; callarVoz(); $('lsPlay').textContent = '▶ Reproducir'; $('drive').hidden = true }
+function lsStop(){ lsOn = false; lsGen++; pcGen++; callarVoz(); $('lsPlay').textContent = '▶ Reproducir'; $('drive').hidden = true }
 $('driveBtn').onclick = () => { sesionAudio('playback'); $('drive').hidden = false; if (!lsOn) $('lsPlay').click() };
 $('drStop').onclick = () => lsStop();
 try { $('lsTutor').checked = localStorage.getItem('arranca-tutor') !== '0' } catch(e){}
