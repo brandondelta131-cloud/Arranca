@@ -315,33 +315,56 @@ function renderJpPaso(){
 const jpBox = () => $('jpPaso');
 const jpBotonSig = (txt) => `<button class="primary" id="jpNext" style="font-size:18px;padding:14px">${txt || 'Siguiente →'}</button>`;
 
-// 1. Escuchar sin texto primero (input comprensible)
+// 1. Escuchar con el texto a la vista: una vuelta con subtítulos y otra solo en japonés, y repetir hasta que se pegue
 function jpEscucha(){
   const e = jpL.escena;
-  jpBox().innerHTML = `<p class="muted small">Escúchala sin leer. Intenta adivinar qué pasa: no tienes que entender todo.</p>
-    <div class="flash"><div class="f">🎧 ${esc(e.titulo)}</div><div class="muted small" id="jpOyendo">Toca para escuchar</div></div>
-    <div class="row"><button class="primary" id="jpPlay">▶ Escuchar</button><button id="jpVer">👀 Ver el texto</button><button class="ghost" id="jpLento">🐢 Más lento</button></div>
-    <div id="jpTexto" hidden style="display:grid;gap:8px"></div>${jpBotonSig()}`;
-  let gen = 0;
+  let subs = true, vueltas = 0, gen = 0;
+  const abiertas = new Set();
+  jpBox().innerHTML = `<p class="small" id="jpGuia" style="margin:0"></p>
+    <div class="flash" style="padding:10px;min-height:0"><div class="f" style="font-size:22px">🎧 ${esc(e.titulo)}</div><div class="muted small" id="jpOyendo"></div></div>
+    <div class="row"><button class="primary" id="jpPlay">▶ Escuchar</button><button id="jpSubs"></button><button class="ghost" id="jpLento">🐢 Más lento</button></div>
+    <div id="jpTexto" style="display:grid;gap:8px"></div>${jpBotonSig()}`;
+  const pintar = () => {
+    $('jpGuia').innerHTML = subs
+      ? '💬 <b>Con subtítulos:</b> escucha y lee para entender qué pasa.'
+      : '👀 <b>Solo japonés:</b> escucha y sigue las letras con la vista. Toca una línea si necesitas su subtítulo.';
+    $('jpSubs').textContent = subs ? '🙈 Quitar subtítulos' : '💬 Poner subtítulos';
+    $('jpTexto').innerHTML = e.lineas.map((x, k) => `<div data-jpline="${k}" style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer">
+      <div lang="ja" style="font-size:22px;font-weight:700">${x[0] ? `<span class="muted small">${esc(x[0])}:</span> ` : ''}${esc(x[1])} <span class="small">🔊</span></div>
+      <div data-jpsub ${subs || abiertas.has(k) ? '' : 'hidden'}><div class="small" style="color:var(--accent)">${esc(x[2])}</div><div class="small muted">${esc(x[3])}</div></div></div>`).join('');
+  };
+  const marcar = k => document.querySelectorAll('[data-jpline]').forEach(x => x.style.background = +x.dataset.jpline === k ? 'var(--soft)' : '');
   const tocar = async rate => {
     const g = ++gen;
     for (let k = 0; k < e.lineas.length && g === gen; k++){
-      $('jpOyendo').textContent = `${k + 1} de ${e.lineas.length}`;
-      document.querySelectorAll('[data-jpline]').forEach(x => x.style.background = +x.dataset.jpline === k ? 'var(--soft)' : '');
+      $('jpOyendo').textContent = `Línea ${k + 1} de ${e.lineas.length}`;
+      marcar(k);
       await jpDi(e.lineas[k][1], rate); await wait(500);
     }
-    if (g === gen && $('jpOyendo')) $('jpOyendo').textContent = 'Escúchala otra vez: la segunda vez se entiende más.';
+    if (g !== gen || !$('jpOyendo')) return;
+    marcar(-1); vueltas++;
+    // Después de la primera vuelta con subtítulos, sigue sola la vuelta solo en japonés
+    if (vueltas === 1 && subs){
+      subs = false; pintar();
+      $('jpOyendo').textContent = 'Ahora la misma escena, solo en japonés…';
+      await wait(1500); if (g === gen) tocar(rate);
+      return;
+    }
+    $('jpOyendo').textContent = `Llevas ${vueltas} ${vueltas === 1 ? 'vuelta' : 'vueltas'}. Repítela las veces que quieras hasta que se te pegue.`;
   };
-  $('jpPlay').onclick = () => tocar(0.95);
-  $('jpLento').onclick = () => tocar(0.7);
-  $('jpVer').onclick = () => {
-    const t = $('jpTexto'); t.hidden = !t.hidden;
-    t.innerHTML = e.lineas.map((x, k) => `<div data-jpline="${k}" data-jpsay="${esc(x[1])}" style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer">
-      <div lang="ja" style="font-size:20px;font-weight:700">${x[0] ? `<span class="muted small">${x[0]}:</span> ` : ''}${esc(x[1])} 🔊</div>
-      <div class="small" style="color:var(--accent)">${esc(x[2])}</div><div class="small muted">${esc(x[3])}</div></div>`).join('');
+  $('jpPlay').onclick = () => { callarVoz(); tocar(0.95) };
+  $('jpLento').onclick = () => { callarVoz(); tocar(0.7) };
+  $('jpSubs').onclick = () => { subs = !subs; abiertas.clear(); pintar() };
+  $('jpTexto').onclick = ev => {
+    const l = ev.target.closest('[data-jpline]'); if (!l) return;
+    const k = +l.dataset.jpline;
+    if (!subs){ abiertas.has(k) ? abiertas.delete(k) : abiertas.add(k); l.querySelector('[data-jpsub]').hidden = !abiertas.has(k) }
+    gen++; callarVoz(); marcar(k); jpDi(e.lineas[k][1]);
   };
-  jpBox().onclick = ev => { const s = ev.target.closest('[data-jpsay]'); if (s){ gen++; callarVoz(); jpDi(s.dataset.jpsay) } };
-  $('jpNext').onclick = () => { gen++; jpSig() };
+  jpBox().onclick = null;
+  $('jpNext').onclick = () => { gen++; callarVoz(); jpSig() };
+  pintar();
+  $('jpOyendo').textContent = 'Primera vuelta…';
   tocar(0.95);
 }
 
