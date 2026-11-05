@@ -1,6 +1,6 @@
 // Guarda la app para que abra sin internet. Sube CACHE cuando cambie index.html.
-const CACHE = 'arranca-v22';
-const ASSETS = ['./', './index.html', './japones.js?v=22', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+const CACHE = 'arranca-v23';
+const ASSETS = ['./', './index.html', './japones.js?v=23', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => {
@@ -14,8 +14,10 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || req.url.includes('.supabase.co')) return;
   // La página: primero internet (para recibir actualizaciones), si no hay, la copia guardada
   if (req.mode === 'navigate'){
-    e.respondWith(fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', cp)); return r })
-      .catch(() => caches.match('./index.html')));
+    // Con datos lentos no se queda en blanco: si la red tarda más de 4 s, abre la copia guardada (la nueva llega la próxima vez)
+    const red = fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', cp)); return r });
+    const lento = new Promise(res => setTimeout(res, 4000)).then(() => caches.match('./index.html'));
+    e.respondWith(Promise.race([red.catch(() => caches.match('./index.html')), lento.then(c => c || red)]).then(r => r || red));
     return;
   }
   e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => {

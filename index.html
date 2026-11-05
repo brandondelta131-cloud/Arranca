@@ -382,7 +382,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 22;
+const VERSION = 23;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -523,8 +523,14 @@ function renderAccount(){
   const creds = () => ({email: $('aEmail').value.trim(), password: $('aPass').value});
   $('aIn').onclick = async () => {
     $('aMsg').textContent = 'Entrando…';
-    const { error } = await sb.auth.signInWithPassword(creds());
-    $('aMsg').textContent = error ? (/confirm/i.test(error.message) ? 'Primero confirma tu correo con el enlace que te llegó.' : 'Correo o contraseña incorrectos.') : '';
+    let error;
+    try { ({ error } = await sb.auth.signInWithPassword(creds())) } catch(e){ error = e }
+    const red = error && (!navigator.onLine || /fetch|network|load failed|timeout|abort/i.test(error.message || '') || error.status === 0 || !error.status && error.name !== 'AuthApiError');
+    $('aMsg').textContent = !error ? ''
+      : red ? 'No hay conexión con el servidor (' + (error.message || 'sin respuesta') + '). Revisa tus datos o el wifi e intenta otra vez: tu contraseña no tiene problema.'
+      : /confirm/i.test(error.message) ? 'Primero confirma tu correo con el enlace que te llegó.'
+      : /invalid/i.test(error.message) ? 'Correo o contraseña incorrectos.'
+      : 'No se pudo entrar: ' + error.message;
   };
   $('aUp').onclick = async () => {
     const c = creds();
@@ -1462,6 +1468,6 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync();
 </script>
-<script src="japones.js?v=22"></script>
+<script src="japones.js?v=23"></script>
 </body>
 </html>
