@@ -227,7 +227,17 @@ const jpData = () => (jp ||= {done: {}, xp: 0, dias: [], u: 0});
 const jpGuardar = () => { jpData().u = Date.now(); persist() };
 const jpTodasKana = hasta => JP_LECCIONES.slice(0, hasta + 1).flatMap(l => l.kana);
 const jpMezclar = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
-const jpDi = (t, rate) => speak(t, 'ja-JP', rate || 0.9);
+// Si la voz no pudo sonar, lo dice en pantalla con el motivo (en vez de quedarse callado)
+async function jpDi(t, rate){
+  await speak(t, 'ja-JP', rate || 0.9);
+  const ok = ultimaVoz.startsWith('Voz natural') || !ultimaVoz.includes('no tiene voz');
+  let b = $('jpSinVoz');
+  if (ok){ if (b) b.remove(); return }
+  if (!b){ b = document.createElement('div'); b.id = 'jpSinVoz'; b.className = 'card';
+    b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:50;border-color:var(--accent);max-width:560px;margin:auto';
+    b.onclick = () => b.remove(); document.body.append(b) }
+  b.innerHTML = `🔇 <b>No se pudo oír el japonés.</b><br><span class="small">${esc(ultimaVoz.replace('Voz del teléfono (respaldo) · motivo: ', 'No llegó la voz natural: '))}</span><br><span class="muted small">Toca para cerrar</span>`;
+}
 const jpNorm = s => String(s || '').replace(/[\s、。！？!?,.「」・]/g, '')
   .replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
 function jpRacha(){

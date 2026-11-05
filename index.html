@@ -382,7 +382,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 20;
+const VERSION = 21;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -1213,6 +1213,7 @@ function hablarDispositivo(text, lang, rate){
     try {
       const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate || 1;
       const v = pickVoice(lang); if (v) u.voice = v;
+      if (!v && !voicesFor(lang).length) ultimaVoz += ' · este dispositivo no tiene voz para ' + lang;
       const t = setTimeout(res, 2000 + text.length * 180);
       u.onend = u.onerror = () => { clearTimeout(t); res() };
       speechSynthesis.speak(u);
@@ -1242,7 +1243,8 @@ async function audioDe(text, lang){
   if (cache) try { await cache.put(llave, new Response(blob, {headers: {'Content-Type': 'audio/mpeg'}})) } catch(e){}
   return blob;
 }
-function vozUsada(t){ const el = $('vozUltima'); if (el) el.textContent = 'Última lectura: ' + t }
+let ultimaVoz = '';
+function vozUsada(t){ ultimaVoz = t; const el = $('vozUltima'); if (el) el.textContent = 'Última lectura: ' + t }
 async function borrarAudios(){ try { await caches.delete('arranca-voz') } catch(e){} $('vozUltima').textContent = 'Audios guardados borrados. Se vuelven a descargar al escucharlos.' }
 async function speak(text, lang, rate){
   if (!text) return;
@@ -1460,6 +1462,6 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync();
 </script>
-<script src="japones.js?v=19"></script>
+<script src="japones.js?v=21"></script>
 </body>
 </html>
