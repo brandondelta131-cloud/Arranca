@@ -382,7 +382,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 19;
+const VERSION = 20;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -1249,14 +1249,16 @@ async function speak(text, lang, rate){
   if (vozNube()){
     try {
       const blob = await audioDe(text, lang);
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob); let bloqueado = false;
+      if (finVoz){ const f = finVoz; finVoz = null; f() }
       await new Promise(res => {
         finVoz = res;
         audioVoz.onended = audioVoz.onerror = () => { if (finVoz === res){ finVoz = null; res() } };
         sesionAudio('playback'); audioVoz.src = url; audioVoz.playbackRate = rate || 1;
-        audioVoz.play().catch(() => { if (finVoz === res){ finVoz = null; res() } });
+        audioVoz.play().catch(() => { bloqueado = true; if (finVoz === res){ finVoz = null; res() } });
       });
       URL.revokeObjectURL(url);
+      if (bloqueado) return hablarDispositivo(text, lang, rate);
       vozUsada('Voz natural ✓');
       return;
     } catch(e){ vozUsada('Voz del teléfono (respaldo) · motivo: ' + (e.message || e)) }
@@ -1273,6 +1275,10 @@ function desbloquearAudio(){
   } catch(e){}
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// Cualquier primer toque en la app desbloquea el audio (antes solo pasaba al arrancar un bloque)
+let audioListo = false;
+const primerToque = () => { if (audioListo) return; audioListo = true; desbloquearAudio(); try { speechSynthesis.speak(new SpeechSynthesisUtterance('')) } catch(e){} };
+['touchend', 'click'].forEach(t => document.addEventListener(t, primerToque, true));
 
 /* ================= Modo escucha ================= */
 let lsOn = false, lsQueue = [], lsGen = 0;
