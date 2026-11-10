@@ -94,6 +94,45 @@ header.top{position:sticky;top:0;z-index:10;padding:calc(env(safe-area-inset-top
 }
 @media (prefers-reduced-motion: reduce){.side::after{animation:none}.side,.main,.nav-i,.scrim{transition:none}}
 
+
+/* Barra inferior del teléfono (estilo del reel "Navigation Tabs"): vidrio oscuro flotante; la sección activa sube en una
+   joroba que se desliza, con ícono y texto en LED y un punto que brilla. En la PC el menú lateral usa la misma idea. */
+.tabbar{display:none}
+@media (max-width:1023px){
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;z-index:20;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
+    height:66px;padding:0 4px;border-radius:24px;background:#0b1730;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border:1px solid rgba(140,175,230,.22);box-shadow:0 14px 34px rgba(0,0,0,.55),inset 0 1px 0 rgba(200,225,255,.06)}
+  .tabbar::after{content:"";position:absolute;left:18%;right:18%;bottom:-1px;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,transparent,rgba(var(--led),.9),transparent);box-shadow:0 0 12px rgba(var(--led),.7)}
+  .tb-joroba{position:absolute;top:-16px;left:4px;width:calc((100% - 8px) / 5);height:40px;pointer-events:none;transition:transform .35s cubic-bezier(.3,1.4,.5,1)}
+  /* La joroba es del mismo color que la barra y se desvanece hacia abajo para fundirse con su borde */
+  .tb-joroba::before{content:"";position:absolute;left:50%;top:0;width:60px;height:34px;margin-left:-30px;border-radius:22px 22px 0 0;
+    background:#0b1730;border:1px solid rgba(140,175,230,.24);border-bottom:0;box-shadow:0 -8px 18px rgba(var(--led),.14);
+    -webkit-mask-image:linear-gradient(to bottom,#000 62%,transparent 100%);mask-image:linear-gradient(to bottom,#000 62%,transparent 100%)}
+  .tb-i{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:44px;
+    border:0;background:transparent;color:var(--muted);font:700 11px var(--f-body);padding:6px 0;border-radius:16px}
+  .tb-i svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s cubic-bezier(.3,1.4,.5,1),filter .3s}
+  .tb-i span{transition:color .2s,transform .3s}
+  .tb-i.on{color:var(--accent)}
+  .tb-i.on svg{transform:translateY(-14px);filter:drop-shadow(0 0 7px rgba(var(--led),.9))}
+  .tb-i.on span{transform:translateY(-4px)}
+  .tb-i.on::after{content:"";position:absolute;bottom:5px;width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(var(--led),1),0 0 16px rgba(var(--led),.7)}
+  .tb-i .tb-badge{position:absolute;top:8px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#f43f5e;color:#fff;font-size:10px;line-height:16px;box-shadow:0 0 8px rgba(244,63,94,.8)}
+  .tb-i.on .tb-badge{top:-6px}
+  .main{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+  .menu-btn{display:none}
+}
+/* PC: el resaltado del menú lateral se desliza entre secciones con su luz LED */
+.side nav{position:relative}
+.side-ind{position:absolute;left:0;right:0;top:0;height:44px;border-radius:12px;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(var(--led),.22),rgba(var(--led),.04));border:1px solid rgba(var(--led),.4);box-shadow:0 0 18px rgba(var(--led),.18);
+  transition:transform .35s cubic-bezier(.3,1.3,.5,1),opacity .2s}
+.side-ind::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);box-shadow:0 0 10px rgba(var(--led),.95),0 0 24px rgba(var(--led),.6)}
+.side nav .nav-i.on{background:transparent;border-color:transparent;box-shadow:none}
+.side nav .nav-i.on::before{display:none}
+.nav-i.on svg{transform:translateX(2px) scale(1.08)}
+@media (prefers-reduced-motion: reduce){.tb-joroba,.tb-i svg,.tb-i span,.side-ind{transition:none}}
+
 /* Selector English / 日本語 dentro de Idiomas */
 .seg{display:inline-flex;gap:4px;padding:4px;border-radius:14px;background:#081228;border:1px solid var(--line);justify-self:start}
 .seg button{border:1px solid transparent;background:transparent;color:var(--muted);min-height:40px;padding:8px 18px}
@@ -166,7 +205,7 @@ details ol{padding-left:20px;margin:8px 0}
 <body>
 <aside class="side" id="side" aria-label="Menú de Arranca">
   <div class="logo"><span class="mark" aria-hidden="true">A</span><b>Arran<span>ca</span>.</b></div>
-  <nav id="tabs">
+  <nav id="tabs"><span class="side-ind" id="sideInd" aria-hidden="true"></span>
     <div class="nav-g">Estudiar</div>
     <button class="nav-i" data-nav="hoy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span class="lbl-t">Hoy</span></button>
     <button class="nav-i" data-nav="avance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg><span class="lbl-t">Avance</span></button>
@@ -183,6 +222,7 @@ details ol{padding-left:20px;margin:8px 0}
   </div>
 </aside>
 <div class="scrim" id="scrim"></div>
+<nav class="tabbar" id="tabbar" aria-label="Secciones"><span class="tb-joroba" id="tbJoroba" aria-hidden="true"></span></nav>
 <main class="main">
 <div class="wrap">
 <header class="top">
@@ -434,7 +474,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 28;
+const VERSION = 29;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -622,7 +662,7 @@ function goTab(t){
   if (tab === 'ingles') renderEn();
   if (tab === 'ajustes') renderSettings(true);
   if (tab === 'escuchar'){ loadVoices(); renderVoices(); infoPodcast() }
-  menu(false);
+  menu(false); marcarBarra(t);
   window.scrollTo(0, 0);
   if (ir) setTimeout(() => $(ir)?.scrollIntoView({behavior: 'smooth', block: 'start'}), 60);
 }
@@ -635,9 +675,28 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') menu(false) 
 { let x0 = null; const lado = $('side');
   lado.addEventListener('touchstart', e => { x0 = e.touches[0].clientX }, {passive: true});
   lado.addEventListener('touchend', e => { if (x0 !== null && x0 - e.changedTouches[0].clientX > 60) menu(false); x0 = null }, {passive: true}); }
+
+// Barra inferior del teléfono: 4 secciones + "Más" (abre el menú con Notas, Práctica, Escuchar y Ajustes)
+const TB = [['hoy', 'Hoy'], ['repaso', 'Repaso'], ['idiomas', 'Idiomas'], ['avance', 'Avance'], ['mas', 'Más']];
+$('tabbar').insertAdjacentHTML('beforeend', TB.map(([k, t]) => {
+  const ic = k === 'mas' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>'
+    : document.querySelector(`.side .nav-i[data-nav="${k}"] svg`).outerHTML;
+  return `<button class="tb-i" data-tb="${k}" aria-label="${t}">${ic}<span>${t}</span>${k === 'repaso' ? '<b class="tb-badge" id="tbBadge" hidden></b>' : ''}</button>`;
+}).join(''));
+$('tabbar').addEventListener('click', e => { const b = e.target.closest('[data-tb]'); if (!b) return; b.dataset.tb === 'mas' ? menu(true) : goTab(b.dataset.tb) });
+function marcarBarra(t){
+  const g = GRUPO[t] || t, i = TB.findIndex(x => x[0] === g), k = i >= 0 ? i : 4;
+  document.querySelectorAll('.tb-i').forEach((b, j) => { b.classList.toggle('on', j === k); j === k ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current') });
+  $('tbJoroba').style.transform = `translateX(${k * 100}%)`;
+  // PC: el resaltado se desliza al botón activo del menú lateral
+  const act = document.querySelector('#tabs .nav-i.on'), ind = $('sideInd');
+  if (act){ ind.style.opacity = 1; ind.style.height = act.offsetHeight + 'px'; ind.style.transform = `translateY(${act.offsetTop}px)` } else ind.style.opacity = 0;
+}
+const _renderBadge = renderBadge;
+renderBadge = function(){ _renderBadge(); const n = dueCards().length, b = $('tbBadge'); if (b){ b.hidden = !n; b.textContent = n > 99 ? '99+' : n } };
 // En la PC el menú se puede contraer a solo íconos (se recuerda)
 try { if (localStorage.getItem('arranca-menu-mini') === '1') document.body.classList.add('side-mini') } catch(e){}
-$('sideMini').onclick = () => { const m = document.body.classList.toggle('side-mini'); $('sideMini').setAttribute('aria-label', m ? 'Expandir menú' : 'Contraer menú'); try { localStorage.setItem('arranca-menu-mini', m ? '1' : '0') } catch(e){} };
+$('sideMini').onclick = () => { const m = document.body.classList.toggle('side-mini'); setTimeout(() => marcarBarra(tab), 260); $('sideMini').setAttribute('aria-label', m ? 'Expandir menú' : 'Contraer menú'); try { localStorage.setItem('arranca-menu-mini', m ? '1' : '0') } catch(e){} };
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g && !g.closest('#nag')) goTab(g.dataset.go) });
 
 /* ================= Audio base y avisos ================= */
@@ -1531,9 +1590,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=28"></script>
-<script src="japones.js?v=28"></script>
-<script src="ingles.js?v=28"></script>
-<script src="avance.js?v=28"></script>
+<script src="historias.js?v=29"></script>
+<script src="japones.js?v=29"></script>
+<script src="ingles.js?v=29"></script>
+<script src="avance.js?v=29"></script>
 </body>
 </html>
