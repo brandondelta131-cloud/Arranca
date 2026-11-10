@@ -212,8 +212,54 @@ const JP_LECCIONES = [
  mision:'Cuéntale a un amigo japonés cómo es tu día: en la mañana, en la tarde y en la noche'}
 ];
 
+// Preguntas de cada escena, con la mecánica de la clase de inglés: frase clave 3 veces y preguntas de sí o no con respuesta corta.
+// [línea de la escena, pregunta, romaji, respuesta, romaji, español]
+const JP_PREGUNTAS = {
+ j1:{clave:2, p:[
+  [0,'あさですか。','Asa desu ka?','はい、あさです。','Hai, asa desu.','¿Es de mañana? — Sí, es de mañana.'],
+  [1,'よるですか。','Yoru desu ka?','いいえ、あさです。','Iie, asa desu.','¿Es de noche? — No, es de mañana.'],
+  [2,'Aさんはげんきですか。','A-san wa genki desu ka?','はい、げんきです。','Hai, genki desu.','¿A está bien? — Sí, está bien.']]},
+ j2:{clave:2, p:[
+  [0,'Aさんは「すみません」といいましたか。','A-san wa "sumimasen" to iimashita ka?','はい、いいました。','Hai, iimashita.','¿A dijo "sumimasen"? — Sí, lo dijo.'],
+  [2,'コーヒーですか。','Kōhī desu ka?','はい、コーヒーです。','Hai, kōhī desu.','¿Es un café? — Sí, es un café.'],
+  [2,'おちゃですか。','Ocha desu ka?','いいえ、コーヒーです。','Iie, kōhī desu.','¿Es té? — No, es café.']]},
+ j3:{clave:3, p:[
+  [0,'はじめてですか。','Hajimete desu ka?','はい、はじめてです。','Hai, hajimete desu.','¿Es la primera vez que se ven? — Sí.'],
+  [1,'Aさんはブランドンさんですか。','A-san wa Burandon-san desu ka?','はい、そうです。','Hai, sō desu.','¿A es Brandon? — Sí, así es.'],
+  [2,'Bさんはリアさんですか。','B-san wa Ria-san desu ka?','いいえ、さくらさんです。','Iie, Sakura-san desu.','¿B es Lía? — No, es Sakura.']]},
+ j4:{clave:1, p:[
+  [0,'たべますか。','Tabemasu ka?','はい、たべます。','Hai, tabemasu.','¿Van a comer? — Sí, van a comer.'],
+  [1,'おいしいですか。','Oishii desu ka?','はい、おいしいです。','Hai, oishii desu.','¿Está rico? — Sí, está rico.'],
+  [3,'まだたべますか。','Mada tabemasu ka?','いいえ、たべません。','Iie, tabemasen.','¿Siguen comiendo? — No, ya no.']]},
+ j5:{clave:0, p:[
+  [1,'それはいぬですか。','Sore wa inu desu ka?','いいえ、ねこです。','Iie, neko desu.','¿Es un perro? — No, es un gato.'],
+  [2,'ねこはかわいいですか。','Neko wa kawaii desu ka?','はい、かわいいです。','Hai, kawaii desu.','¿El gato es lindo? — Sí, es lindo.'],
+  [3,'なまえはタマですか。','Namae wa Tama desu ka?','はい、タマです。','Hai, Tama desu.','¿Se llama Tama? — Sí, Tama.']]},
+ j6:{clave:3, p:[
+  [1,'Bさんはつかれましたか。','B-san wa tsukaremashita ka?','はい、ちょっとつかれました。','Hai, chotto tsukaremashita.','¿B está cansado? — Sí, un poco.'],
+  [3,'Bさんはだいじょうぶですか。','B-san wa daijōbu desu ka?','はい、だいじょうぶです。','Hai, daijōbu desu.','¿B está bien? — Sí, está bien.'],
+  [3,'Bさんはがんばりますか。','B-san wa ganbarimasu ka?','はい、がんばります。','Hai, ganbarimasu.','¿B le va a echar ganas? — Sí.']]},
+ j7:{clave:3, p:[
+  [1,'むすめはふたりですか。','Musume wa futari desu ka?','いいえ、ひとりです。','Iie, hitori desu.','¿Tiene dos hijas? — No, una.'],
+  [3,'むすめのなまえはリアですか。','Musume no namae wa Ria desu ka?','はい、リアです。','Hai, Ria desu.','¿Su hija se llama Lía? — Sí, Lía.'],
+  [3,'リアがすきですか。','Ria ga suki desu ka?','はい、だいすきです。','Hai, daisuki desu.','¿Quiere a Lía? — Sí, muchísimo.']]},
+ j8:{clave:0, p:[
+  [0,'またあしたあいますか。','Mata ashita aimasu ka?','はい、あいます。','Hai, aimasu.','¿Se ven mañana? — Sí.'],
+  [0,'きょう、またあいますか。','Kyō, mata aimasu ka?','いいえ、あしたです。','Iie, ashita desu.','¿Se ven otra vez hoy? — No, mañana.'],
+  [3,'Bさんは「さようなら」といいましたか。','B-san wa "sayōnara" to iimashita ka?','はい、いいました。','Hai, iimashita.','¿B dijo "sayōnara"? — Sí, lo dijo.']]},
+ j9:{clave:0, p:[
+  [0,'Aさんはえきをさがしていますか。','A-san wa eki o sagashite imasu ka?','はい、さがしています。','Hai, sagashite imasu.','¿A está buscando la estación? — Sí.'],
+  [1,'えきはひだりですか。','Eki wa hidari desu ka?','いいえ、みぎです。','Iie, migi desu.','¿La estación está a la izquierda? — No, a la derecha.'],
+  [1,'まっすぐいきますか。','Massugu ikimasu ka?','はい、まっすぐいきます。','Hai, massugu ikimasu.','¿Va derecho? — Sí, va derecho.']]},
+ j10:{clave:1, p:[
+  [0,'あさ、おちゃをのみますか。','Asa, ocha o nomimasu ka?','いいえ、コーヒーをのみます。','Iie, kōhī o nomimasu.','¿En la mañana toma té? — No, toma café.'],
+  [1,'にほんごをべんきょうしますか。','Nihongo o benkyō shimasu ka?','はい、べんきょうします。','Hai, benkyō shimasu.','¿Estudia japonés? — Sí, estudia.'],
+  [2,'よる、むすめとあそびますか。','Yoru, musume to asobimasu ka?','はい、あそびます。','Hai, asobimasu.','¿En la noche juega con su hija? — Sí, juega.']]}
+};
+
 const JP_PASOS = [
   ['escucha','🎧','Escucha primero'],
+  ['preguntas','❓','Preguntas de la escena'],
   ['kana','🔤','Letras nuevas'],
   ['juego','🎮','Juego rápido'],
   ['leer','📖','Lee palabras'],
@@ -310,7 +356,7 @@ function renderJpPaso(){
     <h2>${ic} ${nombre} <span class="muted small">· Lección ${jpEst.i + 1}: ${esc(l.titulo)}</span></h2>
     <div id="jpPaso" style="display:grid;gap:12px"></div></div>`;
   $('jpSalir').onclick = jpCerrar;
-  ({escucha: jpEscucha, kana: jpKana, juego: jpJuego, leer: jpLeer, sombra: jpSombra, vuelta: jpVuelta, fin: jpFin})[clave]();
+  ({escucha: jpEscucha, preguntas: jpPreguntas, kana: jpKana, juego: jpJuego, leer: jpLeer, sombra: jpSombra, vuelta: jpVuelta, fin: jpFin})[clave]();
 }
 const jpBox = () => $('jpPaso');
 const jpBotonSig = (txt) => `<button class="primary" id="jpNext" style="font-size:18px;padding:14px">${txt || 'Siguiente →'}</button>`;
@@ -366,6 +412,14 @@ function jpEscucha(){
   pintar();
   $('jpOyendo').textContent = 'Primera vuelta…';
   tocar(0.95);
+}
+
+// 1b. Frase clave y preguntas de la escena (mecánica de la clase de inglés, motor en historias.js)
+function jpPreguntas(){
+  const q = JP_PREGUNTAS[jpL.id];
+  if (!q || typeof hsDrill !== 'function'){ jpSig(); return }
+  hsDrill(jpBox(), {...jpL.escena, clave: q.clave, preguntas: q.p}, {lang: 'ja-JP', di: jpDi, color: '#e11d48', fases: ['clave', 'preguntas'],
+    alTerminar: r => { jpEst.total += r.total; jpEst.aciertos += r.aciertos; jpEst.xp += r.aciertos * 10; jpSig() }});
 }
 
 // 2. Letras nuevas con un truco visual cada una

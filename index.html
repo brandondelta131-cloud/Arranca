@@ -121,6 +121,7 @@ details ol{padding-left:20px;margin:8px 0}
     <button data-tab="hoy" class="on">Hoy</button>
     <button data-tab="repaso">Repaso<span class="badge" id="dueBadge" hidden>0</span></button>
     <button data-tab="notas">Notas</button>
+    <button data-tab="ingles" lang="en">English</button>
     <button data-tab="japones" lang="ja">日本語</button>
     <button data-tab="practica">Práctica</button>
     <button data-tab="escuchar">Escuchar</button>
@@ -205,6 +206,9 @@ details ol{padding-left:20px;margin:8px 0}
   </div>
   <div id="notesList" style="display:grid;gap:14px"></div>
 </section>
+
+<!-- INGLÉS (historias en ingles.js, motor en historias.js) -->
+<section class="tab" id="t-ingles" hidden><div id="enArea" style="display:grid;gap:14px"></div></section>
 
 <!-- JAPONÉS (motor en japones.js) -->
 <section class="tab" id="t-japones" hidden><div id="jpArea" style="display:grid;gap:14px"></div></section>
@@ -382,7 +386,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 23;
+const VERSION = 24;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -406,15 +410,15 @@ const DEFAULT_PLAN = {
   ]
 };
 
-let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, pods = {}, lia = null, voces = null, jp = null;
+let plan = clone(DEFAULT_PLAN), planU = 0, log = {days:{}}, cards = {}, notes = {}, exs = {}, pods = {}, lia = null, voces = null, jp = null, ingl = null;
 let act = {id: null, at: 0}; // bloque que corre ahora; el servidor no manda recordatorios mientras está fresco
 
 /* ================= Guardado local + sincronización ================= */
 const LKEY = 'arranca-app-v1';
 function localLoad(){
-  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; pods = s.pods || {}; lia = s.lia || null; voces = s.voces || null; jp = s.jp || null } } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(LKEY)); if (s){ plan = s.plan || plan; planU = s.planU || 0; log = s.log || log; cards = s.cards || {}; notes = s.notes || {}; exs = s.exs || {}; pods = s.pods || {}; lia = s.lia || null; voces = s.voces || null; jp = s.jp || null; ingl = s.ingl || null } } catch(e){}
 }
-function snapshot(){ return {plan, planU, log, cards, notes, exs, pods, lia, voces, act, jp} }
+function snapshot(){ return {plan, planU, log, cards, notes, exs, pods, lia, voces, act, jp, ingl} }
 function persist(){ try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){} scheduleSync() }
 
 // Une dos estados sin perder nada: plan más reciente, minutos máximos, tarjeta con cambio más reciente
@@ -427,6 +431,7 @@ function mergeState(a, b){
   out.lia = ((b.lia?.u || 0) > (a.lia?.u || 0) ? b.lia : a.lia) || null;
   out.voces = ((b.voces?.u || 0) > (a.voces?.u || 0) ? b.voces : a.voces) || null;
   out.jp = ((b.jp?.u || 0) > (a.jp?.u || 0) ? b.jp : a.jp) || null;
+  out.ingl = ((b.ingl?.u || 0) > (a.ingl?.u || 0) ? b.ingl : a.ingl) || null;
   out.log = {days:{}};
   for (const src of [a.log, b.log]) for (const [d, acts] of Object.entries(src?.days || {})){
     out.log.days[d] ||= {};
@@ -463,7 +468,7 @@ async function sync(){
     for (const r of rows){ Object.assign(nuevo.cards, r.payload?.cards || {}); Object.assign(nuevo.notes, r.payload?.notes || {}) }
     const merged = mergeState(mergeState(snapshot(), nuevo), remote);
     const changedLocal = JSON.stringify(merged) !== JSON.stringify(snapshot());
-    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; pods = merged.pods; lia = merged.lia; voces = merged.voces; act = merged.act; jp = merged.jp;
+    plan = merged.plan; planU = merged.planU; log = merged.log; cards = merged.cards; notes = merged.notes; exs = merged.exs; pods = merged.pods; lia = merged.lia; voces = merged.voces; act = merged.act; jp = merged.jp; ingl = merged.ingl;
     try { localStorage.setItem(LKEY, JSON.stringify(snapshot())) } catch(e){}
     if (JSON.stringify(merged) !== JSON.stringify(remote)){
       const { error: e2 } = await sb.from('arranca_state').upsert({user_id: uid, data: merged, updated_at: new Date().toISOString()});
@@ -557,6 +562,7 @@ $('tabs').onclick = e => {
   document.querySelectorAll('section.tab').forEach(s => s.hidden = s.id !== 't-' + tab);
   if (tab === 'repaso') renderReview();
   if (tab === 'japones') renderJp();
+  if (tab === 'ingles') renderEn();
   if (tab === 'ajustes') renderSettings(true);
   if (tab === 'escuchar'){ loadVoices(); renderVoices(); infoPodcast() }
   window.scrollTo(0, 0);
@@ -1456,6 +1462,7 @@ function renderAll(keepSettings){
   const fv = $('cFilter').value; actOptions($('cFilter'), true); $('cFilter').value = fv;
   renderHoy(); renderCards(); renderNotes(); renderExs(); renderLia(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
   if (tab === 'japones' && typeof renderJp === 'function' && !jpL) renderJp();
+  if (tab === 'ingles' && typeof renderEn === 'function' && !enH) renderEn();
 }
 $('liaFile').onchange = e => { const f = e.target.files?.[0]; if (f) fotoLia(f) };
 setInterval(() => {
@@ -1468,6 +1475,8 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync();
 </script>
-<script src="japones.js?v=23"></script>
+<script src="historias.js?v=24"></script>
+<script src="japones.js?v=24"></script>
+<script src="ingles.js?v=24"></script>
 </body>
 </html>
