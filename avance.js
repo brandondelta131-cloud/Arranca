@@ -105,7 +105,6 @@ function avCurso(a){
     extra = `<div class="av-mini"><span>Lecciones <b style="color:var(--ink)">${n} de ${JP_LECCIONES.length}</b> · ${j.xp || 0} XP</span>
       <div class="bar"><div style="width:${100 * n / JP_LECCIONES.length}%;background:${a.color};box-shadow:0 0 10px ${a.color}"></div></div></div>`;
   }
-  const curso = a.id === 'ingles' ? 'ingles' : a.id === 'japones' ? 'japones' : null;
   return `<div class="card av-curso">
     <header><i class="av-led" style="background:${a.color};box-shadow:0 0 10px ${a.color}"></i><h3>${esc(a.name)}</h3></header>
     <div class="av-fila">${avAnillo(meta ? hecho / meta : 0, a.color, `${Math.round(meta ? 100 * hecho / meta : 0)}% de la meta de la semana`)}
@@ -115,7 +114,9 @@ function avCurso(a){
         <span>Tarjetas: <b>${cs.length}</b>${toca ? ` · <b style="color:var(--accent)">${toca} por repasar</b>` : ''}</span>
       </div></div>
     ${extra}
-    <div class="row"><button class="primary" data-avstart="${esc(a.id)}">▶ Empezar bloque</button>${curso ? `<button data-go="${curso}">Abrir curso</button>` : ''}</div>
+    <div class="row"><button class="primary" data-avstart="${esc(a.id)}">▶ ${hoyM >= 1 && hoyM < hoyMeta ? 'Seguir' : 'Empezar'}</button>
+      ${linkDe(a) ? `<a class="btn" href="${esc(linkDe(a))}" target="_blank" rel="noopener">Abrir ↗</a>` : ''}
+      ${a.id === 'ingles' ? '<button data-go="ingles">Historias</button>' : ''}</div>
   </div>`;
 }
 

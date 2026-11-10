@@ -261,7 +261,8 @@ details ol{padding-left:20px;margin:8px 0}
 
   <div id="avKpis"></div>
 
-  <div class="card">
+  <!-- Plan de hoy: oculto; sus enlaces y botones ahora están en los cuadros de "Tus cursos" -->
+  <div class="card" id="planCard" hidden>
     <div class="row" style="justify-content:space-between">
       <h2>Plan de hoy</h2>
       <span class="muted small" id="dayTotal"></span>
@@ -474,7 +475,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 30;
+const VERSION = 31;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -1591,9 +1592,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=30"></script>
-<script src="japones.js?v=30"></script>
-<script src="ingles.js?v=30"></script>
-<script src="avance.js?v=30"></script>
+<script src="historias.js?v=31"></script>
+<script src="japones.js?v=31"></script>
+<script src="ingles.js?v=31"></script>
+<script src="avance.js?v=31"></script>
 </body>
 </html>
