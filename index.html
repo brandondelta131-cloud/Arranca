@@ -386,7 +386,7 @@ details ol{padding-left:20px;margin:8px 0}
 
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 26;
+const VERSION = 27;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -842,28 +842,31 @@ function escucharVoz(lang){
     r.start();
   });
 }
-/* Micrófono para hablar con calma: no te corta mientras piensas. Termina después de 10 s de silencio
-   o cuando tocas "Ya terminé". Muestra en vivo lo que va entendiendo. En iPhone el reconocimiento se corta solo
+/* Micrófono para hablar con calma: no te corta mientras piensas. Termina después de `silencio` ms sin hablar
+   (5 s en la conversación) o cuando tocas "Ya terminé". Con opts.listo(texto) termina en cuanto lo que dijiste
+   ya es la frase esperada (ejercicios de las historias). Antes de que empieces a hablar espera más (opts.espera). Muestra en vivo lo que va entendiendo. En iPhone el reconocimiento se corta solo
    cada tanto: aquí se vuelve a encender y se junta todo. */
 let vozActiva = null;
-function escucharLargo(lang, el, silencio = 10000){
+function escucharLargo(lang, el, silencio = 5000, opts = {}){
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
   return new Promise((res, rej) => {
     if (!Rec) return rej(new Error('Este navegador no reconoce voz. En iPhone usa Safari; en la PC, Chrome o Edge.'));
     if (vozActiva) vozActiva.terminar();
     callarVoz(); sesionAudio('play-and-record');
-    let finales = '', parcial = '', ultimo = Date.now(), cerrado = false, r = null, error = null;
+    let finales = '', parcial = '', ultimo = Date.now(), hablo = false, cerrado = false, r = null, error = null;
+    const espera = opts.espera || Math.max(silencio, 8000);
     const texto = () => (finales + ' ' + parcial).replace(/\s+/g, ' ').trim();
     if (el){
-      el.innerHTML = `<div>🎤 <b>Te escucho…</b> <span class="muted small">habla con calma; termino cuando calles <span data-seg>10</span> s</span></div>
+      el.innerHTML = `<div>🎤 <b>Te escucho…</b> <span class="muted small">${opts.aviso || `habla con calma; termino cuando calles <span data-seg>${Math.round(silencio / 1000)}</span> s`}</span></div>
         <div data-vivo lang="${lang}" style="min-height:24px;font-size:18px;margin:4px 0"></div>
         <button data-listo class="primary">✓ Ya terminé</button>`;
       el.querySelector('[data-listo]').onclick = () => terminar();
     }
     const reloj = setInterval(() => {
-      const falta = Math.ceil((silencio - (Date.now() - ultimo)) / 1000);
-      const s = el && el.querySelector('[data-seg]'); if (s) s.textContent = Math.max(0, falta);
-      if (Date.now() - ultimo >= silencio) terminar();
+      const limite = hablo ? silencio : espera;
+      const falta = Math.ceil((limite - (Date.now() - ultimo)) / 1000);
+      const s = el && el.querySelector('[data-seg]'); if (s && hablo) s.textContent = Math.max(0, falta);
+      if (Date.now() - ultimo >= limite) terminar();
     }, 250);
     function terminar(){
       if (cerrado) return; cerrado = true; clearInterval(reloj); vozActiva = null;
@@ -880,8 +883,9 @@ function escucharLargo(lang, el, silencio = 10000){
           const t = e.results[i][0].transcript;
           if (e.results[i].isFinal) finales += ' ' + t; else parcial += t;
         }
-        ultimo = Date.now();
+        ultimo = Date.now(); hablo = true;
         const v = el && el.querySelector('[data-vivo]'); if (v) v.textContent = texto();
+        if (opts.listo && opts.listo(texto())) setTimeout(terminar, 250);
       };
       r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){ error = new Error('Permite el micrófono para Arranca en los ajustes del navegador o del iPhone.'); terminar() } };
       r.onend = () => { if (cerrado) return; if (parcial){ finales += ' ' + parcial; parcial = '' } try { iniciar() } catch(err){ terminar() } };
@@ -1525,8 +1529,8 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync();
 </script>
-<script src="historias.js?v=26"></script>
-<script src="japones.js?v=26"></script>
-<script src="ingles.js?v=26"></script>
+<script src="historias.js?v=27"></script>
+<script src="japones.js?v=27"></script>
+<script src="ingles.js?v=27"></script>
 </body>
 </html>

@@ -470,7 +470,8 @@ function enDrill(box, h, alTerminar){
   async function decirFrase(texto, el, umbral = 0.8){
     const res = el.querySelector('[data-enres]');
     try {
-      const dijo = await escucharLargo('en-US', res);
+      // Se revisa en cuanto terminas la frase: si ya la dijiste bien, al instante; si no, 1.5 s después de que dejas de hablar
+      const dijo = await escucharLargo('en-US', res, 1500, {listo: x => enComparar(x, texto).nota >= umbral, aviso: 'di la frase; la reviso en cuanto termines'});
       const c = enComparar(dijo, texto), ok = c.nota >= umbral;
       st.total++; if (ok) st.aciertos++;
       const malas = c.marcadas.filter(m => !m.ok).map(m => m.p.replace(/[^A-Za-z'’]/g, ''));
@@ -572,8 +573,9 @@ function enDrill(box, h, alTerminar){
       $('enHablo').onclick = async () => {
         const res = $('enMic').querySelector('[data-enres]');
         try {
-          const dijo = await escucharLargo('en-US', res);
-          const esperado = hsPolaridad(p[3], 'en-US'), dicho = hsPolaridad(dijo, 'en-US');
+          const esperado = hsPolaridad(p[3], 'en-US');
+          const dijo = await escucharLargo('en-US', res, 1500, {listo: x => hsPolaridad(x, 'en-US') === esperado && enComparar(x, p[3]).nota >= 0.8, aviso: 'contesta; te reviso en cuanto termines'});
+          const dicho = hsPolaridad(dijo, 'en-US');
           const c = enComparar(dijo, p[3]);
           const ok = dicho === esperado && c.nota >= 0.5;
           st.total++; if (ok) st.aciertos++;
