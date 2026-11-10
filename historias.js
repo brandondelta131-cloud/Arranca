@@ -42,7 +42,8 @@ function hsDrill(box, h, o){
   const st = {f: 0, aciertos: 0, total: 0};
   let gen = 0;
   const parar = () => { gen++; callarVoz() };
-  const di = (t, r) => o.di(t, r);
+  // Si cambiaste de pestaña o saliste, deja de sonar (en vez de seguir hablando por detrás)
+  const di = (t, r) => box.isConnected && box.offsetParent ? o.di(t, r) : (gen++, Promise.resolve());
   const linea = (x, conSub, extra = '') => `<div ${extra} style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer">
       <div ${hsJa(o.lang) ? 'lang="ja"' : ''} style="font-size:${hsJa(o.lang) ? 22 : 19}px;font-weight:700">${x[0] ? `<span class="muted small">${esc(x[0])}:</span> ` : ''}${esc(x[1])} <span class="small">🔊</span></div>
       <div data-hssub ${conSub ? '' : 'hidden'}>${x[2] ? `<div class="small" style="color:${color}">${esc(x[2])}</div>` : ''}<div class="small muted">${esc(x[3])}</div></div></div>`;
