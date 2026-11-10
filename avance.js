@@ -1,4 +1,4 @@
-/* Avance: dashboard de tus cursos (Inglés, Japonés, TripleTen, Daxus) con el tema azul marino y luces LED.
+/* Avance (vive en Inicio): dashboard de tus cursos (Inglés, Japonés, TripleTen, Daxus) con el tema azul marino y luces LED.
    Lee lo que ya guarda Arranca: minutos por día y materia (log.days), tarjetas (cards) y el progreso de los cursos
    de idiomas (jp, ingl). No escribe nada. */
 
@@ -128,13 +128,13 @@ function renderAvance(){
   const racha = avRacha(), nDias = innerWidth < 640 ? 7 : 14;
   const todo = Object.values(log.days || {}).reduce((s, d) => s + Object.values(d).reduce((t, m) => t + m, 0), 0);
   const diasConEstudio = Object.values(log.days || {}).filter(d => Object.values(d).reduce((t, m) => t + m, 0) >= 1).length;
-  box.innerHTML = `
-    <div class="av-kpis">
+  const k = $('avKpis'); if (k) k.innerHTML = `    <div class="av-kpis">
       <div class="card av-kpi"><span class="ic">${avSvg('racha')}</span><span class="v">${racha}</span><span class="l">${racha === 1 ? 'día seguido' : 'días seguidos'} estudiando</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('hoy')}</span><span class="v">${hoyMeta ? Math.round(100 * hoyM / hoyMeta) : 0}%</span><span class="l">de hoy · ${avMin(hoyM)} de ${avMin(hoyMeta)}</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('semana')}</span><span class="v">${(semM / 60).toFixed(1)} h</span><span class="l">esta semana · meta ${(semMeta / 60).toFixed(1)} h</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('repaso')}</span><span class="v">${toca}</span><span class="l">tarjetas por repasar de ${cs.length}</span></div>
-    </div>
+    </div>`;
+  box.innerHTML = `
     <div class="card"><div class="row" style="justify-content:space-between"><h2>Últimos ${nDias} días</h2><span class="muted small">minutos por día</span></div>${avGrafica(nDias)}</div>
     <h2 style="margin-top:4px">Tus cursos</h2>
     <div class="av-cursos">${plan.acts.map(avCurso).join('')}</div>
