@@ -273,7 +273,7 @@ details ol{padding-left:20px;margin:8px 0}
 
   <div id="avArea" style="display:grid;gap:14px"></div>
 
-  <div class="card">
+  <div class="card" id="vistoHoy" hidden>
     <h2>Lo que viste hoy</h2>
     <p class="muted small">Al terminar cada bloque anota lo aprendido. La app te lo repite varias veces hoy y luego cada vez menos: 10 min, 30 min, 1 h, 3 h, 6 h, 1 día, 2, 4, 7, 15, 30 y 60 días.</p>
     <div class="row"><button id="addFromHoy">+ Anotar lo que aprendí</button><button id="goReview">Repasar ahora</button></div>
@@ -475,7 +475,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 31;
+const VERSION = 32;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -604,7 +604,16 @@ function renderAccount(){
   }
   if (session){
     box.innerHTML = `<p class="small">Conectado como <b>${esc(session.user.email)}</b>. Todo lo que hagas aquí aparece en tus otros dispositivos.</p>
+      <div class="row"><label class="lbl grow">Tu nombre (para la bienvenida)<input id="aNombre" maxlength="30" autocomplete="given-name" value="${esc(nombreUsuario())}"></label><button id="aNombreOk">Guardar nombre</button></div>
       <div class="row"><button id="syncNow">Guardar ahora</button><button class="ghost" id="logout">Cerrar sesión</button></div>`;
+    $('aNombreOk').onclick = async () => {
+      const n = $('aNombre').value.trim().slice(0, 30); if (!n) return;
+      $('aNombreOk').textContent = 'Guardando…';
+      const { data, error } = await sb.auth.updateUser({data: {nombre: n}});
+      if (!error && data?.user) session.user = data.user;
+      $('aNombreOk').textContent = error ? 'No se pudo guardar' : '✓ Guardado';
+      if (typeof renderAvance === 'function') renderAvance();
+    };
     $('syncNow').onclick = () => sync();
     $('logout').onclick = async () => { await sb.auth.signOut(); session = null; renderAccount(); setSync('', 'Guardado en este dispositivo.') };
     return;
@@ -783,8 +792,20 @@ const actById = id => plan.acts.find(a => a.id === id);
 const isWE = () => [0, 6].includes(new Date().getDay());
 const tOf = a => (isWE() && a.timeWE) ? a.timeWE : a.time;
 const mOf = a => (isWE() && a.minsWE) ? a.minsWE : a.mins;
-const linkDe = a => a.id === 'japones' ? '#jp' : a.link;
-document.addEventListener('click', e => { const l = e.target.closest('a[href="#jp"]'); if (l){ e.preventDefault(); goTab('japones') } });
+// El dueño (Brandon) tiene todo libre; los demás usuarios avanzan por niveles y japonés es suscripción aparte
+const DUENO_ID = '9149c6bd-9358-45dd-a72d-5f1c8e232045';
+const esDueno = () => session?.user?.id === DUENO_ID;
+const tieneJapones = () => esDueno() || !!session?.user?.app_metadata?.japones;
+function nombreUsuario(){
+  const m = session?.user?.user_metadata?.nombre;
+  if (m) return m;
+  const e = session?.user?.email || '';
+  const n = e.split('@')[0].replace(/[._\d]+/g, ' ').trim().split(' ')[0] || '';
+  return n ? n[0].toUpperCase() + n.slice(1) : '';
+}
+// A los usuarios, Inglés y Japonés los mandan a sus cursos dentro de Arranca (no al curso de Kale)
+const linkDe = a => a.id === 'japones' ? '#jp' : (a.id === 'ingles' && !esDueno()) ? '#en' : a.link;
+document.addEventListener('click', e => { const l = e.target.closest('a[href="#jp"], a[href="#en"]'); if (l){ e.preventDefault(); goTab(l.getAttribute('href') === '#jp' ? 'japones' : 'ingles') } });
 const doneMin = (id, d = today()) => (log.days?.[d]?.[id]) || 0;
 let run = null; // {id, last, paused, notified}
 
@@ -1592,9 +1613,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=31"></script>
-<script src="japones.js?v=31"></script>
-<script src="ingles.js?v=31"></script>
-<script src="avance.js?v=31"></script>
+<script src="historias.js?v=32"></script>
+<script src="japones.js?v=32"></script>
+<script src="ingles.js?v=32"></script>
+<script src="avance.js?v=32"></script>
 </body>
 </html>

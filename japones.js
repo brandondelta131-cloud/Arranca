@@ -295,6 +295,17 @@ function jpRacha(){
 
 /* ===== Mapa del curso ===== */
 function renderJp(){
+  // Para los usuarios el curso de japonés es una suscripción aparte
+  if (!tieneJapones()){
+    jpL = null;
+    $('jpArea').innerHTML = `<div class="card" style="text-align:center;justify-items:center;gap:12px;padding:28px">
+      <div style="font-size:44px" aria-hidden="true">🔒</div>
+      <h2>日本語 · Japonés desde cero</h2>
+      <p class="muted" style="max-width:460px">El curso de japonés es una suscripción aparte: 10 lecciones de hiragana con escenas, juegos, preguntas y práctica con voz.</p>
+      <p class="small muted">Pronto podrás activarla desde aquí. Mientras tanto, sigue con tu curso de inglés.</p>
+      <button class="primary" data-go="ingles">Ir a English</button></div>`;
+    return;
+  }
   if (jpL){ renderJpPaso(); return }
   const j = jpData(), hechas = Object.keys(j.done).length;
   const sig = JP_LECCIONES.findIndex(l => !j.done[l.id]);
@@ -338,7 +349,7 @@ function renderJp(){
 }
 
 /* ===== Lección paso a paso ===== */
-function jpAbrir(i){ jpL = JP_LECCIONES[i]; jpPaso = 0; jpEst = {i, xp: 0, aciertos: 0, total: 0, qi: 0}; activar(); renderJp(); window.scrollTo(0, 0) }
+function jpAbrir(i){ if (!tieneJapones()) return; jpL = JP_LECCIONES[i]; jpPaso = 0; jpEst = {i, xp: 0, aciertos: 0, total: 0, qi: 0}; activar(); renderJp(); window.scrollTo(0, 0) }
 function jpCerrar(){ callarVoz(); jpL = null; renderJp() }
 function jpSig(){ callarVoz(); jpPaso++; jpEst.q = null; jpEst.qi = 0; renderJpPaso(); window.scrollTo(0, 0) }
 function jpPuntos(ok){ jpEst.total++; if (ok){ jpEst.aciertos++; jpEst.xp += 10; jpEst.combo = (jpEst.combo || 0) + 1 } else jpEst.combo = 0 }

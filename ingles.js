@@ -335,6 +335,8 @@ function enFalla(texto, es){
 }
 
 /* ---------- Mapa de historias ---------- */
+// Los usuarios abren cada historia al terminar la anterior; el dueño tiene todas libres
+const enAbierta = i => esDueno() || i === 0 || !!enData().done[EN_HISTORIAS[i - 1].id];
 function renderEn(){
   if (enH) return;
   const j = enData(), hechas = Object.keys(j.done).length;
@@ -352,13 +354,14 @@ function renderEn(){
     <div class="card">
       <h2>Tus historias</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">
-      ${EN_HISTORIAS.map((h, i) => `<button data-enh="${i}" style="flex-direction:column;align-items:flex-start;text-align:left;padding:12px;${i === sig ? 'border-color:#2563eb;box-shadow:inset 0 0 0 2px #2563eb' : ''}">
-          <span>${j.done[h.id] ? '✓' : '▶'} ${i + 1}. ${esc(h.titulo)}</span><span class="muted small">${h.nivel} · ${h.lineas.length} frases</span></button>`).join('')}
+      ${EN_HISTORIAS.map((h, i) => { const ab = enAbierta(i); return `<button ${ab ? `data-enh="${i}"` : 'disabled aria-disabled="true"'} style="flex-direction:column;align-items:flex-start;text-align:left;padding:12px;${i === sig ? 'border-color:#2563eb;box-shadow:inset 0 0 0 2px #2563eb' : ''}">
+          <span>${j.done[h.id] ? '✓' : ab ? '▶' : '🔒'} ${i + 1}. ${esc(h.titulo)}</span><span class="muted small">${ab ? `${h.nivel} · ${h.lineas.length} frases` : 'Termina la anterior para abrirla'}</span></button>` }).join('')}
       </div>
     </div>`;
 }
 
 function enAbrir(i){
+  if (!enAbierta(i)) return;
   if (enDrillActual) enDrillActual.parar();
   enH = EN_HISTORIAS[i]; activar();
   $('enArea').innerHTML = `<div class="card">

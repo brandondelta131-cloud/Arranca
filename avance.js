@@ -31,6 +31,22 @@
   .av-tot b{display:block;font:900 20px var(--f-led);color:var(--ink)}
   /* En el teléfono: 2 columnas y el ícono arriba (va al final para ganarle a las reglas generales) */
   @media (max-width:520px){ .av-kpis{grid-template-columns:1fr 1fr;gap:10px} .av-kpi{grid-template-columns:1fr;padding:14px} .av-kpi .ic{grid-row:auto;width:36px;height:36px} .av-kpi .v{font-size:22px} }
+  /* Bienvenida y nivel */
+  .av-hola{display:grid;gap:10px}
+  .av-hola h1{font:800 clamp(24px,4vw,34px)/1.15 var(--f-display);letter-spacing:-.5px}
+  .av-hola h1 span{color:var(--accent);text-shadow:0 0 16px rgba(var(--led),.6)}
+  .av-nivel{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center}
+  .av-nivel .chip-n{grid-row:span 2;width:58px;height:58px;border-radius:16px;display:grid;place-items:center;background:var(--metal);border:1px solid rgba(var(--led),.5);box-shadow:var(--glow);font:900 24px var(--f-led);color:var(--accent);text-shadow:0 0 12px rgba(var(--led),.9)}
+  .av-nivel .t{font-weight:700} .av-nivel .t small{color:var(--muted);font-weight:400}
+  /* Llama azul animada de la racha */
+  .llama{width:30px;height:30px;overflow:visible}
+  .llama .ext{fill:url(#llamaExt);transform-origin:50% 90%;animation:llamaA 1.4s ease-in-out infinite}
+  .llama .int{fill:url(#llamaInt);transform-origin:50% 92%;animation:llamaB 1.1s ease-in-out infinite}
+  .av-kpi .ic svg.llama{width:34px;height:34px;stroke:none;filter:none;margin-top:-4px}
+  .av-kpi .ic.fuego{background:radial-gradient(circle at 50% 70%,rgba(56,189,248,.35),rgba(56,189,248,.06) 70%);box-shadow:0 0 18px rgba(56,189,248,.45)}
+  @keyframes llamaA{0%,100%{transform:scale(1,1) skewX(0)}25%{transform:scale(1.04,1.1) skewX(-3deg)}50%{transform:scale(.97,.95) skewX(2deg)}75%{transform:scale(1.03,1.06) skewX(-1deg)}}
+  @keyframes llamaB{0%,100%{transform:scale(1,1)}40%{transform:scale(.9,1.12) translateY(-1px)}70%{transform:scale(1.06,.94)}}
+  @media (prefers-reduced-motion: reduce){ .llama .ext,.llama .int{animation:none} }
   @media (prefers-reduced-motion: no-preference){ .av-ring circle.p{transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)} }
   `;
   document.head.append(st);
@@ -43,6 +59,14 @@ const AV_IC = {
   repaso: '<rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 2h12a2 2 0 0 1 2 2v12"/>'
 };
 const avSvg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${AV_IC[k]}</svg>`;
+const AV_LLAMA = `<svg class="llama" viewBox="0 0 32 32" aria-hidden="true"><defs>
+  <linearGradient id="llamaExt" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#1e40af"/><stop offset=".55" stop-color="#38bdf8"/><stop offset="1" stop-color="#a5f3fc"/></linearGradient>
+  <linearGradient id="llamaInt" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#e0f2fe"/><stop offset="1" stop-color="#7dd3fc"/></linearGradient></defs>
+  <path class="ext" d="M16 2c1.6 4.4 6.8 7.6 6.8 14.2A6.8 6.8 0 0 1 16 23a6.8 6.8 0 0 1-6.8-6.8c0-3.3 1.8-5.3 3.4-6.9.2 2.2 1.2 3.6 2.5 4.3C15 10 14.6 5.7 16 2z" style="filter:drop-shadow(0 0 5px #38bdf8)"/>
+  <path class="int" d="M16 12.5c.9 2.3 3.3 3.8 3.3 6.8A3.3 3.3 0 0 1 16 22.6a3.3 3.3 0 0 1-3.3-3.3c0-1.7.9-2.7 1.7-3.4.2 1 .7 1.7 1.3 2-.2-2 .1-3.6.3-5.4z"/></svg>`;
+// Niveles: cada nivel pide un poco más de XP. XP = minutos estudiados + XP de las historias y lecciones
+const avXP = () => Math.round(Object.values(log.days || {}).reduce((s, d) => s + Object.values(d).reduce((t, m) => t + m, 0), 0)) + ((ingl && ingl.xp) || 0) + ((jp && jp.xp) || 0);
+function avNivel(xp){ let n = 1, base = 0, paso = 150; while (xp >= base + paso){ base += paso; n++; paso = Math.round(paso * 1.25 / 10) * 10 } return {n, en: xp - base, falta: base + paso - xp, paso} }
 const avMin = m => { m = Math.round(m || 0); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min` };
 function avPlaneado(a, fecha){ const we = [0, 6].includes(fecha.getDay()); return (we && a.minsWE) ? a.minsWE : a.mins }
 function avDias(n){ const r = []; const t = new Date(); t.setHours(12, 0, 0, 0); for (let i = n - 1; i >= 0; i--){ const d = new Date(t); d.setDate(t.getDate() - i); r.push(d) } return r }
@@ -129,8 +153,15 @@ function renderAvance(){
   const racha = avRacha(), nDias = innerWidth < 640 ? 7 : 14;
   const todo = Object.values(log.days || {}).reduce((s, d) => s + Object.values(d).reduce((t, m) => t + m, 0), 0);
   const diasConEstudio = Object.values(log.days || {}).filter(d => Object.values(d).reduce((t, m) => t + m, 0) >= 1).length;
-  const k = $('avKpis'); if (k) k.innerHTML = `    <div class="av-kpis">
-      <div class="card av-kpi"><span class="ic">${avSvg('racha')}</span><span class="v">${racha}</span><span class="l">${racha === 1 ? 'día seguido' : 'días seguidos'} estudiando</span></div>
+  const xp = avXP(), nv = avNivel(xp), nom = (typeof nombreUsuario === 'function' && nombreUsuario()) || '';
+  const k = $('avKpis'); if (k) k.innerHTML = `<div class="av-hola">
+      <h1>Bienvenido de nuevo${nom ? `, <span>${esc(nom)}</span>` : ''}</h1>
+      <div class="card av-nivel"><span class="chip-n" aria-hidden="true">${nv.n}</span>
+        <span class="t">Nivel ${nv.n} <small>· ${xp} XP en total · te faltan ${nv.falta} XP para el nivel ${nv.n + 1}</small></span>
+        <div class="bar" role="progressbar" aria-label="Avance al siguiente nivel" aria-valuenow="${Math.round(100 * nv.en / nv.paso)}" aria-valuemin="0" aria-valuemax="100"><div style="width:${100 * nv.en / nv.paso}%"></div></div></div>
+    </div>`;
+  if (k) k.innerHTML += `    <div class="av-kpis">
+      <div class="card av-kpi"><span class="ic fuego">${AV_LLAMA}</span><span class="v">${racha}</span><span class="l">${racha === 1 ? 'día seguido' : 'días seguidos'} estudiando</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('hoy')}</span><span class="v">${hoyMeta ? Math.round(100 * hoyM / hoyMeta) : 0}%</span><span class="l">de hoy · ${avMin(hoyM)} de ${avMin(hoyMeta)}</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('semana')}</span><span class="v">${(semM / 60).toFixed(1)} h</span><span class="l">esta semana · meta ${(semMeta / 60).toFixed(1)} h</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('repaso')}</span><span class="v">${toca}</span><span class="l">tarjetas por repasar de ${cs.length}</span></div>
