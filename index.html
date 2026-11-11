@@ -477,7 +477,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 36;
+const VERSION = 37;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -586,9 +586,14 @@ async function initSync(){
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true}});
   const { data } = await sb.auth.getSession();
   session = data.session;
-  sb.auth.onAuthStateChange((_ev, s) => {
+  // Pantalla de acceso (acceso.js): se muestra si no hay sesión; si llegas del correo de recuperación, pide la nueva contraseña
+  window.arrancaSesionLista = true;
+  if (typeof mostrarAcceso === 'function') mostrarAcceso(!session);
+  sb.auth.onAuthStateChange((ev, s) => {
     session = s; renderAccount(); renderPush();
-    if (s){ sync(); guardarSuscripcion(false).catch(() => {}) }  // sin pedir nada: renueva la suscripción si ya diste permiso
+    if (ev === 'PASSWORD_RECOVERY' && typeof accesoNuevaClave === 'function') accesoNuevaClave();
+    else if (typeof mostrarAcceso === 'function') mostrarAcceso(!s);
+    if (s){ sync(); guardarSuscripcion(false).catch(() => {}); renderAll() }  // sin pedir nada: renueva la suscripción si ya diste permiso
   });
   renderAccount(); renderPush();
   if (session) sync(); else setSync('', 'Guardado en este dispositivo. Entra en Ajustes para guardar en la nube.');
@@ -1674,9 +1679,10 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=36"></script>
-<script src="japones.js?v=36"></script>
-<script src="ingles.js?v=36"></script>
-<script src="avance.js?v=36"></script>
+<script src="historias.js?v=37"></script>
+<script src="japones.js?v=37"></script>
+<script src="ingles.js?v=37"></script>
+<script src="avance.js?v=37"></script>
+<script src="acceso.js?v=37"></script>
 </body>
 </html>
