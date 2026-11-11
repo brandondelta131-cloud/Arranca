@@ -419,7 +419,7 @@ details ol{padding-left:20px;margin:8px 0}
   </div>
   <div class="card">
     <h2>Tus materias y tiempos</h2>
-    <p class="muted small">Cambia horas, minutos y el enlace de cada curso. Se guarda solo.</p>
+    <p class="muted small">Cambia horas, minutos y el enlace de cada curso. Puedes agregar lo que tú estudies: tendrá su cronómetro, recordatorios y bloqueo de distracciones. Se guarda solo.</p>
     <div id="acts"></div>
     <div class="row"><button id="addAct">+ Agregar materia</button></div>
   </div>
@@ -477,7 +477,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 33;
+const VERSION = 34;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -1625,7 +1625,25 @@ $('addAct').onclick = () => { plan.acts.push({id: 'a' + Date.now().toString(36),
 $('nagMin').onchange = () => { plan.nagMin = +$('nagMin').value; savePlan() };
 
 /* ================= Arranque ================= */
+// Plan de los usuarios: el curso de inglés de Arranca (+ japonés si lo pagó) y las materias que ellos agreguen.
+// TripleTen, Daxus y el curso de Kale son membresías del dueño: no se comparten.
+const SOLO_DUENO = ['triple', 'daxus'];
+function ajustarPlanUsuario(){
+  if (!session || esDueno()) return;
+  let cambio = false;
+  const quitar = SOLO_DUENO.concat(tieneJapones() ? [] : ['japones']), n0 = plan.acts.length;
+  plan.acts = plan.acts.filter(a => !quitar.includes(a.id));
+  if (plan.acts.length !== n0) cambio = true;
+  let en = plan.acts.find(a => a.id === 'ingles');
+  if (!en){ plan.acts.unshift(en = {id: 'ingles', name: 'Inglés · Arranca', time: '19:00', mins: 30, timeWE: '10:00', minsWE: 45, link: '#en', color: '#3b82f6', fl: 'en-US', bl: 'es-MX'}); cambio = true }
+  if (/kale/i.test(en.name + en.link)){ en.name = 'Inglés · Arranca'; en.link = '#en'; cambio = true }
+  const ja = plan.acts.find(a => a.id === 'japones');
+  if (tieneJapones() && !ja){ plan.acts.push({id: 'japones', name: 'Japonés · Arranca', time: '20:00', mins: 20, timeWE: '11:00', minsWE: 30, link: '#jp', color: '#e11d48', fl: 'ja-JP', bl: 'es-MX'}); cambio = true }
+  if (ja && ja.name === 'Japonés'){ ja.name = 'Japonés · Arranca'; cambio = true }
+  if (cambio) savePlan();
+}
 function renderAll(keepSettings){
+  ajustarPlanUsuario();
   [ $('cAct'), $('lsAct') ].forEach(s => { const v = s.value; actOptions(s, s.id === 'lsAct'); if (v) s.value = v });
   const fv = $('cFilter').value; actOptions($('cFilter'), true); $('cFilter').value = fv;
   renderHoy(); renderCards(); renderNotes(); renderExs(); renderLia(); renderBadge(); if (!keepSettings) renderSettings(); checkNag();
@@ -1644,9 +1662,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=33"></script>
-<script src="japones.js?v=33"></script>
-<script src="ingles.js?v=33"></script>
-<script src="avance.js?v=33"></script>
+<script src="historias.js?v=34"></script>
+<script src="japones.js?v=34"></script>
+<script src="ingles.js?v=34"></script>
+<script src="avance.js?v=34"></script>
 </body>
 </html>
