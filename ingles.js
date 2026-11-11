@@ -305,10 +305,11 @@ async function enPalabra(w, frase){
     $('enPopAdd').onclick = () => {
       const back = g ? `${g[0]} · Ej: ${g[1]} (${g[2]})` : (nube || '').slice(0, 300);
       if (!cardList().some(c => c.act === 'ingles' && c.f.toLowerCase() === k)) addCards('ingles', `${k} = ${back}`);
+      if (enH && !enMarcadas.some(m => m.startsWith(k + ' '))) enMarcadas.push(`${k} (${(g ? g[0] : back).slice(0, 60)})`);
       $('enPopAdd').textContent = '✓ Agregada a tu Repaso'; $('enPopAdd').disabled = true;
     };
   };
-  const g = EN_GLOSA[k];
+  const g = (enH && enH.glosa && enH.glosa[k]) || EN_GLOSA[k];
   if (g || enGlosaNube[k]){ pintar(g, enGlosaNube[k]); enDi(k, 0.9); return }
   pintar(null, null); enDi(k, 0.9);
   try {
@@ -330,48 +331,99 @@ document.addEventListener('click', e => {
 function enFalla(texto, es){
   const j = enData(); j.fallas = j.fallas || {};
   j.fallas[texto] = (j.fallas[texto] || 0) + 1; j.u = Date.now(); persist();
-  if (j.fallas[texto] === 5 && !cardList().some(c => c.act === 'ingles' && c.f === texto)){ addCards('ingles', `${texto} = ${es}`); return true }
+  if (j.fallas[texto] === 5 && !cardList().some(c => c.act === 'ingles' && c.f === texto)){ addCards('ingles', `${texto} = ${es}`); if (!enMarcadas.includes(texto)) enMarcadas.push(texto); return true }
   return false;
 }
 
-/* ---------- Mapa de historias ---------- */
-// Los usuarios abren cada historia al terminar la anterior; el dueño tiene todas libres
-const enAbierta = i => esDueno() || i === 0 || !!enData().done[EN_HISTORIAS[i - 1].id];
+/* ---------- Niveles del curso: 6 niveles de 40 historias, cada uno un poco más difícil ---------- */
+const EN_NIVELES = [
+  {n: 1, cefr: 'A1', nombre: 'Primeros pasos'}, {n: 2, cefr: 'A2', nombre: 'Tu día a día'}, {n: 3, cefr: 'A2+', nombre: 'Te defiendes'},
+  {n: 4, cefr: 'B1', nombre: 'Conversaciones reales'}, {n: 5, cefr: 'B1+', nombre: 'Con soltura'}, {n: 6, cefr: 'B2', nombre: 'Como en la vida real'}];
+const EN_POR_NIVEL = 40;
+// Cuántas historias tiene de verdad cada nivel (historias/indice.json); un nivel se completa al terminar todas las suyas
+let EN_TOTAL = {1: 40, 2: 40, 3: 40, 4: 40, 5: 40, 6: 40};
+fetch(`historias/indice.json?v=${VERSION}`).then(r => r.ok ? r.json() : null).then(d => { if (d){ EN_TOTAL = {...EN_TOTAL, ...d}; if (tab === 'ingles' && !enH) renderEn() } }).catch(() => {});
+const enCache = {};
+let enNivelVista = null;     // null = mapa de niveles; 1..6 = historias del nivel; 'x' = las 8 de práctica
+let enMarcadas = [];         // palabras y frases que el alumno mandó a su Repaso en esta historia
+async function enCargarNivel(n){
+  if (enCache[n]) return enCache[n];
+  const r = await fetch(`historias/en-nivel-${n}.json?v=${VERSION}`);
+  if (!r.ok) throw new Error('Este nivel todavía no está disponible.');
+  const d = await r.json();
+  d.historias.forEach(h => { h.nivel = d.cefr; h.nNivel = n });
+  return (enCache[n] = d);
+}
+const enHechasN = n => Object.keys(enData().done).filter(id => id.startsWith(`n${n}-`)).length;
+// Los usuarios abren un nivel al terminar el anterior; dentro del nivel, cada historia al terminar la anterior. El dueño tiene todo libre.
+const enNivelAbierto = n => esDueno() || n === 1 || enHechasN(n - 1) >= EN_TOTAL[n - 1];
+function enNivelActual(){ let a = 1; for (let n = 2; n <= 6; n++) if (enNivelAbierto(n)) a = n; return a }
+const enAbierta = (lista, i) => esDueno() || i === 0 || !!enData().done[lista[i - 1].id];
+
 function renderEn(){
   if (enH) return;
-  const j = enData(), hechas = Object.keys(j.done).length;
-  const sig = EN_HISTORIAS.findIndex(h => !j.done[h.id]);
+  const j = enData();
+  if (enNivelVista === null){
+    const actual = enNivelActual();
+    $('enArea').innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2>🇺🇸 English · Curso por niveles</h2>
+          <span class="muted small">⭐ ${j.xp} XP · 🔥 ${enRacha()} ${enRacha() === 1 ? 'día' : 'días'}</span>
+        </div>
+        <p class="muted small">6 niveles de 40 historias. Cada historia tiene 3 partes: con subtítulos, sin subtítulos y preguntas. Al terminar un nivel ganas XP extra y se abre el siguiente.</p>
+        <button class="primary" data-ennivel="${actual}" style="font-size:18px;padding:14px">▶ Seguir en el nivel ${actual}</button>
+      </div>
+      <div class="av-cursos">${EN_NIVELES.map(v => {
+        const ab = enNivelAbierto(v.n), h = enHechasN(v.n);
+        return `<button ${ab ? `data-ennivel="${v.n}"` : 'disabled aria-disabled="true"'} class="card" style="text-align:left;justify-items:start;gap:6px;${v.n === actual ? 'border-color:rgba(var(--led),.55);box-shadow:var(--glow)' : ''}">
+          <span class="small muted">Nivel ${v.n} · ${v.cefr}</span>
+          <b style="font-size:18px">${ab ? '' : '🔒 '}${esc(v.nombre)}</b>
+          <span class="small muted">${ab ? `${h} de ${EN_TOTAL[v.n]} historias` : `Termina el nivel ${v.n - 1} para abrirlo`}</span>
+          <div class="bar" style="width:100%"><div style="width:${100 * h / EN_TOTAL[v.n]}%"></div></div></button>`;
+      }).join('')}</div>
+      <div class="card"><div class="row" style="justify-content:space-between"><h2>Historias de práctica</h2><button data-ennivel="x">Ver las ${EN_HISTORIAS.length}</button></div>
+        <p class="muted small">Las primeras historias de Arranca, libres para repasar cuando quieras.</p></div>`;
+    return;
+  }
+  if (enNivelVista === 'x'){ enPintarLista(EN_HISTORIAS, 'Historias de práctica', 'Libres para repasar'); return }
+  $('enArea').innerHTML = '<div class="card"><p class="muted">Cargando el nivel…</p></div>';
+  enCargarNivel(enNivelVista).then(d => {
+    if (enH || enNivelVista !== d.nivel) return;
+    const v = EN_NIVELES[d.nivel - 1];
+    enPintarLista(d.historias, `Nivel ${v.n} · ${v.cefr} · ${v.nombre}`, `${enHechasN(v.n)} de ${d.historias.length} historias`);
+  }).catch(e => { $('enArea').innerHTML = `<div class="card"><p>⚠️ ${esc(e.message)}</p><button data-ennivel="">← Niveles</button></div>` });
+}
+function enPintarLista(lista, titulo, sub){
+  const j = enData(), sig = lista.findIndex(h => !j.done[h.id]);
+  window.enListaVista = lista;
   $('enArea').innerHTML = `
     <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <h2>🇺🇸 English · Historias</h2>
-        <span class="muted small">⭐ ${j.xp} XP · 🔥 ${enRacha()} ${enRacha() === 1 ? 'día' : 'días'}</span>
-      </div>
-      <div class="bar"><div style="width:${100 * hechas / EN_HISTORIAS.length}%;background:#2563eb"></div></div>
-      <p class="muted small">3 partes: entiéndela con subtítulos, entiéndela sin subtítulos y contesta las preguntas. Toca cualquier palabra para ver qué significa.</p>
-      <button class="primary" data-enh="${sig >= 0 ? sig : 0}" style="font-size:18px;padding:14px">▶ ${sig >= 0 ? `Historia ${sig + 1}: ${esc(EN_HISTORIAS[sig].titulo)}` : 'Repasar desde la primera'}</button>
+      <div class="row" style="justify-content:space-between"><button class="ghost" data-ennivel="">← Niveles</button><span class="muted small">${esc(sub)}</span></div>
+      <h2>${esc(titulo)}</h2>
+      ${sig >= 0 ? `<button class="primary" data-enh="${sig}" style="font-size:18px;padding:14px">▶ Historia ${sig + 1}: ${esc(lista[sig].titulo)}</button>` : '<p><b>🎉 Terminaste todas las historias de aquí.</b></p>'}
     </div>
     <div class="card">
-      <h2>Tus historias</h2>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">
-      ${EN_HISTORIAS.map((h, i) => { const ab = enAbierta(i); return `<button ${ab ? `data-enh="${i}"` : 'disabled aria-disabled="true"'} style="flex-direction:column;align-items:flex-start;text-align:left;padding:12px;${i === sig ? 'border-color:#2563eb;box-shadow:inset 0 0 0 2px #2563eb' : ''}">
-          <span>${j.done[h.id] ? '✓' : ab ? '▶' : '🔒'} ${i + 1}. ${esc(h.titulo)}</span><span class="muted small">${ab ? `${h.nivel} · ${h.lineas.length} frases` : 'Termina la anterior para abrirla'}</span></button>` }).join('')}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px">
+      ${lista.map((h, i) => { const ab = enNivelVista === 'x' || enAbierta(lista, i); return `<button ${ab ? `data-enh="${i}"` : 'disabled aria-disabled="true"'} style="flex-direction:column;align-items:flex-start;text-align:left;padding:12px;${i === sig ? 'border-color:#2563eb;box-shadow:inset 0 0 0 2px #2563eb' : ''}">
+          <span>${j.done[h.id] ? '✓' : ab ? '▶' : '🔒'} ${i + 1}. ${esc(h.titulo)}</span><span class="muted small">${ab ? `${h.nivel} · ${h.lineas.length} frases` : 'Termina la anterior'}</span></button>` }).join('')}
       </div>
     </div>`;
 }
 
 function enAbrir(i){
-  if (!enAbierta(i)) return;
+  const lista = window.enListaVista || EN_HISTORIAS;
+  if (!lista[i] || (enNivelVista !== 'x' && !enAbierta(lista, i))) return;
   if (enDrillActual) enDrillActual.parar();
-  enH = EN_HISTORIAS[i]; activar();
+  enH = lista[i]; enMarcadas = []; activar();
   $('enArea').innerHTML = `<div class="card">
     <div class="row" style="justify-content:space-between"><button class="ghost" id="enSalir">← Salir</button>
       <span class="small">Velocidad <select id="enVel">${[0.75, 1, 1.2].map(v => `<option value="${v}" ${v === enVel ? 'selected' : ''}>${v}×</option>`).join('')}</select></span></div>
-    <h2>${esc(enH.titulo)} <span class="muted small">· Historia ${i + 1} de ${EN_HISTORIAS.length} · ${enH.nivel}</span></h2>
+    <h2>${esc(enH.titulo)} <span class="muted small">· Historia ${i + 1} de ${lista.length} · ${enH.nivel}</span></h2>
     <div class="small" id="enPartes"></div>
     <div id="enBox" style="display:grid;gap:12px"></div></div>`;
   $('enVel').onchange = () => { enVel = +$('enVel').value; try { localStorage.setItem('arranca-vel-en', enVel) } catch(e){} };
-  enDrillActual = enDrill($('enBox'), enH, r => enFin(i, r));
+  enDrillActual = enDrill($('enBox'), enH, r => enFin(lista, i, r));
   $('enSalir').onclick = () => { enDrillActual.parar(); enDrillActual = null; enH = null; $('enPop')?.remove(); renderEn() };
   window.scrollTo(0, 0);
 }
@@ -605,37 +657,51 @@ function enDrill(box, h, alTerminar){
   return {parar};
 }
 
-function enFin(i, r){
-  const j = enData(), h = EN_HISTORIAS[i], nueva = !j.done[h.id];
-  const xp = (nueva ? 50 : 20) + r.aciertos * 5;
-  j.xp += xp; j.done[h.id] = j.done[h.id] || today();
+function enFin(lista, i, r){
+  const j = enData(), h = lista[i], nueva = !j.done[h.id], nv = h.nNivel || 0;
+  let xp = (nueva ? 40 + 10 * nv : 15) + r.aciertos * 5, bono = 0;
+  j.done[h.id] = j.done[h.id] || today();
+  // Cada nivel completo da XP extra
+  if (nueva && nv && enHechasN(nv) === EN_TOTAL[nv]){ bono = 250 * nv; xp += bono }
+  j.xp += xp;
   if (!j.dias.includes(today())) j.dias = [...j.dias, today()].slice(-120);
   j.u = Date.now();
   const hay = new Set(cardList().filter(c => c.act === 'ingles').map(c => c.f));
   const lineas = [[h.lineas[h.clave][1], h.lineas[h.clave][3]], ...h.frases].filter(f => !hay.has(f[0])).map(f => `${f[0]} = ${f[1]}`);
   const nuevas = lineas.length ? addCards('ingles', lineas.join('\n')) : 0;
-  persist(); chime(false); enDrillActual = null;
-  const otra = EN_HISTORIAS.findIndex(x => !j.done[x.id]);
+  // Nota de la historia, en inglés: el contenido y, resaltado, lo que marcaste para repasar
+  const nid = 'nx' + Date.now().toString(36);
+  notes[nid] = {id: nid, act: 'ingles', date: today(), lang: 'en-US', created: Date.now(), u: Date.now(),
+    titulo: `Story: ${h.titulo}`,
+    resumen: h.lineas.map(l => `${l[0]}: ${l[1]}`).join(' '),
+    puntos: [...enMarcadas.map(m => `★ ${m}`), `Key sentence: ${h.lineas[h.clave][1]}`, ...h.frases.map(f => `Useful: ${f[0]}`)]};
+  persist(); chime(false); enDrillActual = null; renderNotes();
+  const otra = lista.findIndex(x => !j.done[x.id]);
   if ($('enPartes')) $('enPartes').innerHTML = '🏁 <b>¡Terminada!</b>';
   $('enBox').innerHTML = `<div class="flash"><div class="f">🎉 ¡Historia terminada!</div>
-      <div>+${xp} XP · ${r.aciertos} de ${r.total} bien · 🔥 ${enRacha()} ${enRacha() === 1 ? 'día seguido' : 'días seguidos'}</div>
-      <div class="muted small">${nuevas} tarjetas nuevas en tu Repaso con la frase clave y las expresiones de la historia.</div></div>
+      <div>+${xp} XP${bono ? ` (incluye ${bono} por terminar el nivel ${nv})` : ''} · ${r.aciertos} de ${r.total} bien · 🔥 ${enRacha()} ${enRacha() === 1 ? 'día seguido' : 'días seguidos'}</div>
+      <div class="muted small">${nuevas} tarjetas nuevas en tu Repaso. La nota en inglés de esta historia ya está en Notas${enMarcadas.length === 1 ? ', con lo que marcaste' : enMarcadas.length ? `, con las ${enMarcadas.length} cosas que marcaste` : ''}.</div></div>
+    ${bono && nv < 6 ? `<div class="card" style="border-color:rgba(var(--led),.55);box-shadow:var(--glow)"><h2>🔓 ¡Nivel ${nv + 1} abierto!</h2><p class="small">También se abren nuevas conversaciones en Práctica.</p></div>` : ''}
     <div class="card" style="background:var(--soft)">
       <h2>🎯 Platica de la historia con Claude</h2>
       <p class="small">Claude te hace preguntas en inglés sobre "${esc(h.titulo)}" y sobre tu vida, y te corrige. Te deja terminar de hablar.</p>
       <div class="row"><button class="primary" id="enMision">🗣️ Empezar</button></div></div>
-    <div class="row">${otra >= 0 ? '<button class="primary" id="enOtra">Siguiente historia →</button>' : ''}<button id="enMapa">Volver a las historias</button></div>`;
+    <div class="row">${otra >= 0 ? '<button class="primary" id="enOtra">Siguiente historia →</button>' : ''}<button id="enMapa">Volver</button></div>`;
   $('enMapa').onclick = () => { enH = null; renderEn() };
   if (otra >= 0) $('enOtra').onclick = () => enAbrir(otra);
   $('enMision').onclick = () => {
-    const esc0 = `Conversation practice (A2 level, short sentences). Talk about this story: "${h.lineas.map(l => l[1]).join(' ')}". Ask the student simple questions about the story and then similar questions about their own life. Use: ${h.frases.map(f => f[0]).join(' / ')}`;
+    const esc0 = `Conversation practice. Talk about this story: "${h.lineas.map(l => l[1]).join(' ')}". Ask the student simple questions about the story and then similar questions about their own life. Use: ${h.frases.map(f => f[0]).join(' / ')}`;
     const sel = $('cvEsc');
     let op = [...sel.options].find(o => o.value === esc0);
-    if (!op){ op = new Option('🎯 Historia: ' + h.titulo, esc0); sel.add(op, 0) }
+    if (!op){ op = new Option('🎯 Historia: ' + h.titulo, esc0); op.dataset.nivel = nv || enNivelActual(); sel.add(op, 0) }
     $('cvLang').value = 'en-US'; sel.value = esc0;
     enH = null; renderEn(); goTab('practica');
     cvHist = []; renderChat(); turnoCv();
   };
 }
 
-$('enArea').addEventListener('click', e => { const b = e.target.closest('[data-enh]'); if (b) enAbrir(+b.dataset.enh) });
+$('enArea').addEventListener('click', e => {
+  const nv = e.target.closest('[data-ennivel]');
+  if (nv){ const v = nv.dataset.ennivel; enNivelVista = v === '' ? null : v === 'x' ? 'x' : +v; enH = null; renderEn(); window.scrollTo(0, 0); return }
+  const b = e.target.closest('[data-enh]'); if (b) enAbrir(+b.dataset.enh);
+});

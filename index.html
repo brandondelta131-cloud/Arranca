@@ -331,6 +331,7 @@ details ol{padding-left:20px;margin:8px 0}
         <option>Platicar de tu día</option><option>Preguntar cómo llegar a un lugar</option>
         <option>Hablar de tu familia</option><option>Hacer compras en una tienda</option></select></label>
     </div>
+    <p class="muted small" id="cvNivelInfo"></p>
     <div id="cvChat" style="display:grid;gap:8px"></div>
     <div class="row">
       <button class="primary" id="cvMic">🎤 Hablar</button>
@@ -353,6 +354,7 @@ details ol{padding-left:20px;margin:8px 0}
   <div class="card">
     <h2>🎧 Podcast de hoy</h2>
     <p class="muted small">Un repaso hablado de unos 5 minutos con lo que estudiaste, como si un maestro te lo platicara. Ideal para el camino al trabajo.</p>
+    <label class="row small" id="pcInglesFila"><input type="checkbox" id="pcIngles" style="width:auto"> Todo en inglés (para entrenar el oído)</label>
     <div class="row"><button class="primary" id="pcPlay">▶ Escuchar podcast</button><button id="pcNuevo">Crear otro</button></div>
     <p class="muted small" id="pcInfo"></p>
   </div>
@@ -475,7 +477,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 32;
+const VERSION = 33;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -672,7 +674,8 @@ function goTab(t){
   if (tab === 'japones') renderJp();
   if (tab === 'ingles') renderEn();
   if (tab === 'ajustes') renderSettings(true);
-  if (tab === 'escuchar'){ loadVoices(); renderVoices(); infoPodcast() }
+  if (tab === 'practica') pintarEscenarios();
+  if (tab === 'escuchar'){ loadVoices(); renderVoices(); infoPodcast(); pintarPcIngles() }
   menu(false); marcarBarra(t);
   window.scrollTo(0, 0);
   if (ir) setTimeout(() => $(ir)?.scrollIntoView({behavior: 'smooth', block: 'start'}), 60);
@@ -1199,7 +1202,7 @@ $('notesList').addEventListener('click', e => {
     // Por partes: cada una es corta (no se recorta) y se guarda aparte para escucharla sin internet
     const partes = [n.titulo, n.resumen, ...(n.puntos || [])].filter(Boolean);
     const gen = ++notaGen;
-    (async () => { for (const t of partes){ if (gen !== notaGen) return; await speak(t, 'es-MX', +$('lsRate').value); await wait(400) } })();
+    (async () => { for (const t of partes){ if (gen !== notaGen) return; await speak(t, n.lang || 'es-MX', +$('lsRate').value); await wait(400) } })();
   }
   if (d){
     if (d.dataset.sure){ notes[d.dataset.ndel] = {id: d.dataset.ndel, del: true, u: Date.now()}; persist(); renderNotes() }
@@ -1266,11 +1269,12 @@ async function crearPodcast(){
   const notas = ns.map(n => `${actById(n.act)?.name || n.act} · ${n.titulo}: ${n.resumen} ${(n.puntos || []).join('; ')}`).join(' | ');
   const dificiles = cardList().filter(c => (c.fails || 0) >= 2).slice(0, 10).map(c => `${c.f} = ${c.b}`).join(' | ');
   $('pcInfo').textContent = 'Escribiendo tu podcast… (unos 30 segundos)';
-  const r = await tutor({accion: 'podcast', notas, dificiles});
-  const id = pcId();
-  pods[id] = {id, date: today(), titulo: r.titulo, partes: r.partes, created: Date.now(), u: Date.now()};
+  const soloIngles = podcastIngles();
+  const r = await tutor({accion: 'podcast', notas, dificiles, soloIngles, nivel: typeof enNivelActual === 'function' ? enNivelActual() : 3});
+  const id = pcId(), lang = soloIngles ? 'en-US' : 'es-MX';
+  pods[id] = {id, date: today(), titulo: r.titulo, partes: r.partes, lang, created: Date.now(), u: Date.now()};
   persist(); infoPodcast();
-  r.partes.forEach(t => audioDe(t, 'es-MX').catch(() => {}));  // descargar el audio desde ya, para el carro
+  r.partes.forEach(t => audioDe(t, lang).catch(() => {}));  // descargar el audio desde ya, para el carro
   return pods[id];
 }
 async function reproducirPodcast(){
@@ -1281,15 +1285,41 @@ async function reproducirPodcast(){
   $('drive').hidden = false; $('drF').textContent = p.titulo;
   for (let i = 0; i < p.partes.length && gen === pcGen; i++){
     $('drB').textContent = `Parte ${i + 1} de ${p.partes.length}`;
-    await speak(p.partes[i], 'es-MX', +$('lsRate').value);
+    await speak(p.partes[i], p.lang || 'es-MX', +$('lsRate').value);
     await wait(500);
   }
   if (gen === pcGen) $('drive').hidden = true;
 }
+// Los usuarios escuchan el podcast siempre en inglés; tú decides (se recuerda)
+function podcastIngles(){ if (!esDueno()) return true; try { return localStorage.getItem('arranca-pc-ingles') === '1' } catch(e){ return false } }
+function pintarPcIngles(){ $('pcIngles').checked = podcastIngles(); $('pcInglesFila').hidden = !esDueno() }
+$('pcIngles').onchange = () => { try { localStorage.setItem('arranca-pc-ingles', $('pcIngles').checked ? '1' : '0') } catch(e){} };
 $('pcPlay').onclick = reproducirPodcast;
 $('pcNuevo').onclick = async () => { try { await crearPodcast() } catch(e){ $('pcInfo').textContent = '⚠️ ' + e.message } };
 
 /* ================= Conversación ================= */
+// Escenarios de inglés por nivel. El nivel k se abre al llevar el 75% del nivel k-1 del curso (30 de 40 historias); el dueño tiene todos.
+const CV_NIVELES = [
+  [1, 'Presentarte: tu nombre, de dónde eres y a qué te dedicas'], [1, 'Hablar de tu familia'],
+  [2, 'Pedir algo en una cafetería'], [2, 'Platicar de tu fin de semana'],
+  [3, 'Preguntar cómo llegar a un lugar'], [3, 'Ir al doctor y explicar qué te pasa'],
+  [4, 'Hacer compras y pedir un cambio'], [4, 'Resolver un problema con un pedido en línea'],
+  [5, 'Entrevista de trabajo'], [5, 'Negociar un precio o un plazo'],
+  [6, 'Dar tu opinión sobre una noticia'], [6, 'Resolver un conflicto con un compañero de trabajo']];
+const CV_JA = ['Pedir algo en una cafetería', 'Presentarte', 'Platicar de tu día', 'Preguntar cómo llegar a un lugar', 'Hablar de tu familia', 'Hacer compras en una tienda'];
+const cvNivelAbierto = k => esDueno() || k === 1 || (typeof enHechasN === 'function' && enHechasN(k - 1) >= Math.ceil(0.75 * EN_TOTAL[k - 1]));
+function pintarEscenarios(){
+  const sel = $('cvEsc'), antes = sel.value, ja = $('cvLang').value.startsWith('ja');
+  const misiones = [...sel.options].filter(o => o.value.length > 80);   // las de "platica de la historia"
+  sel.innerHTML = '';
+  misiones.forEach(o => sel.add(o));
+  if (ja) CV_JA.forEach(t => sel.add(new Option(t, t)));
+  else CV_NIVELES.forEach(([k, t]) => { const ab = cvNivelAbierto(k), o = new Option(`Nivel ${k} · ${ab ? '' : '🔒 '}${t}`, t); o.dataset.nivel = k; o.disabled = !ab; sel.add(o) });
+  if ([...sel.options].some(o => o.value === antes && !o.disabled)) sel.value = antes;
+  const bloq = ja ? 0 : CV_NIVELES.filter(([k]) => !cvNivelAbierto(k)).length;
+  $('cvNivelInfo').textContent = bloq ? `🔒 ${bloq} conversaciones se abren conforme avanzas en tu curso de inglés (con el 75% de cada nivel).` : '';
+}
+$('cvLang').addEventListener('change', () => pintarEscenarios());
 let cvHist = [], cvOcupado = false;
 function renderChat(){
   const lang = $('cvLang').value;
@@ -1307,7 +1337,8 @@ async function turnoCv(dijo){
   if (dijo) cvHist.push({rol: 'yo', texto: dijo});
   renderChat(); $('cvInfo').textContent = 'Pensando…';
   try {
-    const r = await tutor({accion: 'conversa', idioma: lang, escenario: $('cvEsc').value,
+    const opEsc = $('cvEsc').selectedOptions[0];
+    const r = await tutor({accion: 'conversa', idioma: lang, escenario: $('cvEsc').value, nivel: +(opEsc?.dataset.nivel || (typeof enNivelActual === 'function' ? enNivelActual() : 3)),
       historial: cvHist.map(m => ({rol: m.rol, texto: m.texto}))});
     const mio = [...cvHist].reverse().find(m => m.rol === 'yo');
     if (mio && r.correccion) mio.correccion = r.correccion;
@@ -1613,9 +1644,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=32"></script>
-<script src="japones.js?v=32"></script>
-<script src="ingles.js?v=32"></script>
-<script src="avance.js?v=32"></script>
+<script src="historias.js?v=33"></script>
+<script src="japones.js?v=33"></script>
+<script src="ingles.js?v=33"></script>
+<script src="avance.js?v=33"></script>
 </body>
 </html>

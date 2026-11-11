@@ -38,6 +38,14 @@
   .av-nivel{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center}
   .av-nivel .chip-n{grid-row:span 2;width:58px;height:58px;border-radius:16px;display:grid;place-items:center;background:var(--metal);border:1px solid rgba(var(--led),.5);box-shadow:var(--glow);font:900 24px var(--f-led);color:var(--accent);text-shadow:0 0 12px rgba(var(--led),.9)}
   .av-nivel .t{font-weight:700} .av-nivel .t small{color:var(--muted);font-weight:400}
+  .av-rank{display:grid;gap:6px}
+  .av-rank .fila{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:rgba(8,18,40,.5)}
+  .av-rank .fila.yo{border-color:rgba(var(--led),.55);box-shadow:var(--glow)}
+  .av-rank .pos{font:900 16px var(--f-led);color:var(--muted);text-align:center}
+  .av-rank .fila:nth-child(1) .pos{color:#fbbf24;text-shadow:0 0 10px rgba(251,191,36,.8)}
+  .av-rank .fila:nth-child(2) .pos{color:#cbd5e1;text-shadow:0 0 10px rgba(203,213,225,.7)}
+  .av-rank .fila:nth-child(3) .pos{color:#f59e0b}
+  .av-rank .xp{font:700 14px var(--f-led);color:var(--accent)}
   /* Llama azul animada de la racha */
   .llama{width:30px;height:30px;overflow:visible}
   .llama .ext{fill:url(#llamaExt);transform-origin:50% 90%;animation:llamaA 1.4s ease-in-out infinite}
@@ -166,10 +174,12 @@ function renderAvance(){
       <div class="card av-kpi"><span class="ic">${avSvg('semana')}</span><span class="v">${(semM / 60).toFixed(1)} h</span><span class="l">esta semana · meta ${(semMeta / 60).toFixed(1)} h</span></div>
       <div class="card av-kpi"><span class="ic">${avSvg('repaso')}</span><span class="v">${toca}</span><span class="l">tarjetas por repasar de ${cs.length}</span></div>
     </div>`;
+  setTimeout(avRanking, 0);
   box.innerHTML = `
     <div class="card"><div class="row" style="justify-content:space-between"><h2>Últimos ${nDias} días</h2><span class="muted small">minutos por día</span></div>${avGrafica(nDias)}</div>
     <h2 style="margin-top:4px">Tus cursos</h2>
     <div class="av-cursos">${plan.acts.map(avCurso).join('')}</div>
+    <div class="card" id="avRanking" hidden><div class="row" style="justify-content:space-between"><h2>🏆 Ranking</h2><span class="muted small">por XP</span></div><div class="av-rank" id="avRankLista"></div></div>
     <div class="card"><h2>En total</h2><div class="av-tot">
       <div><b>${(todo / 60).toFixed(1)} h</b>estudiadas</div>
       <div><b>${diasConEstudio}</b>días con estudio</div>
@@ -181,3 +191,28 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-avstart]'); if (!b) return;
   startBlock(b.dataset.avstart); goTab('hoy');
 });
+
+/* Ranking: cada quien publica su nombre, XP y nivel (tabla arranca_ranking en Supabase); se ve el top 10 y tu lugar */
+let avRankEnviado = '', avRankLeido = 0, avRankDatos = null;
+async function avRanking(){
+  if (!session || !sb) return;
+  const xp = avXP(), nv = avNivel(xp).n, nombre = (typeof nombreUsuario === 'function' && nombreUsuario()) || 'Estudiante';
+  const firma = `${nombre}|${xp}|${nv}`;
+  try {
+    if (firma !== avRankEnviado){
+      const { error } = await sb.from('arranca_ranking').upsert({user_id: session.user.id, nombre: nombre.slice(0, 30), xp, nivel: nv, actualizado: new Date().toISOString()});
+      if (error) throw error;
+      avRankEnviado = firma; avRankLeido = 0;
+    }
+    if (Date.now() - avRankLeido > 120000){
+      const { data, error } = await sb.from('arranca_ranking').select('user_id,nombre,xp,nivel').order('xp', {ascending: false}).limit(10);
+      if (error) throw error;
+      avRankDatos = data; avRankLeido = Date.now();
+    }
+    const c = $('avRanking'); if (!c || !avRankDatos) return;
+    c.hidden = false;
+    $('avRankLista').innerHTML = avRankDatos.map((r, i) => `<div class="fila ${r.user_id === session.user.id ? 'yo' : ''}">
+      <span class="pos">${i + 1}</span><span>${esc(r.nombre || 'Estudiante')} <span class="muted small">· nivel ${r.nivel}</span></span><span class="xp">${r.xp} XP</span></div>`).join('')
+      + (avRankDatos.some(r => r.user_id === session.user.id) ? '' : `<div class="fila yo"><span class="pos">–</span><span>Tú <span class="muted small">· nivel ${nv}</span></span><span class="xp">${xp} XP</span></div>`);
+  } catch(e){ const c = $('avRanking'); if (c) c.hidden = true }   // si la tabla todavía no existe, no se muestra
+}
