@@ -137,7 +137,7 @@ const JP_LECCIONES = [
   ['む','mu','Una vaca con cuernos: ¡Muuu!'],
   ['め','me','Un ojo. め también significa "ojo".'],
   ['も','mo','Un anzuelo con dos moscas para pescar: mo.']],
- escena:{titulo:'Hablando de Lía', lineas:[
+ escena:{titulo:'Hablando de mi hija', lineas:[
   ['A','かぞくはなんにんですか。','Kazoku wa nan-nin desu ka.','¿Cuántos son en tu familia?'],
   ['B','むすめがひとりいます。','Musume ga hitori imasu.','Tengo una hija.'],
   ['A','なまえは？','Namae wa?','¿Cómo se llama?'],
@@ -349,7 +349,9 @@ function renderJp(){
 }
 
 /* ===== Lección paso a paso ===== */
-function jpAbrir(i){ if (!tieneJapones()) return; jpL = JP_LECCIONES[i]; jpPaso = 0; jpEst = {i, xp: 0, aciertos: 0, total: 0, qi: 0}; activar(); renderJp(); window.scrollTo(0, 0) }
+// La escena de la lección 7 habla de Lía (la hija del dueño); para los demás usuarios usa un nombre neutro
+const jpSinLia = o => esDueno() ? o : JSON.parse(JSON.stringify(o).replace(/リア/g, 'ハナ').replace(/Ria/g, 'Hana').replace(/Lía/g, 'Hana'));
+function jpAbrir(i){ if (!tieneJapones()) return; jpL = jpSinLia(JP_LECCIONES[i]); jpPaso = 0; jpEst = {i, xp: 0, aciertos: 0, total: 0, qi: 0}; activar(); renderJp(); window.scrollTo(0, 0) }
 function jpCerrar(){ callarVoz(); jpL = null; renderJp() }
 function jpSig(){ callarVoz(); jpPaso++; jpEst.q = null; jpEst.qi = 0; renderJpPaso(); window.scrollTo(0, 0) }
 function jpPuntos(ok){ jpEst.total++; if (ok){ jpEst.aciertos++; jpEst.xp += 10; jpEst.combo = (jpEst.combo || 0) + 1 } else jpEst.combo = 0 }
@@ -427,7 +429,7 @@ function jpEscucha(){
 
 // 1b. Frase clave y preguntas de la escena (mecánica de la clase de inglés, motor en historias.js)
 function jpPreguntas(){
-  const q = JP_PREGUNTAS[jpL.id];
+  const q = jpSinLia(JP_PREGUNTAS[jpL.id]);
   if (!q || typeof hsDrill !== 'function'){ jpSig(); return }
   hsDrill(jpBox(), {...jpL.escena, clave: q.clave, preguntas: q.p}, {lang: 'ja-JP', di: jpDi, color: '#e11d48', fases: ['clave', 'preguntas'],
     alTerminar: r => { jpEst.total += r.total; jpEst.aciertos += r.aciertos; jpEst.xp += r.aciertos * 10; jpSig() }});

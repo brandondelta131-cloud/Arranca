@@ -408,7 +408,7 @@ details ol{padding-left:20px;margin:8px 0}
     <h2>Cuenta y guardado automático</h2>
     <div id="acctBody"></div>
   </div>
-  <div class="card">
+  <div class="card" id="liaCard">
     <h2>Foto de Lía</h2>
     <p class="muted small">Aparece cuando la app te insiste, en las páginas bloqueadas y en las ventanas de la PC. Se guarda solo en tu cuenta privada.</p>
     <div class="row">
@@ -430,14 +430,14 @@ details ol{padding-left:20px;margin:8px 0}
   </div>
   <div class="card" id="bloqueoCard">
     <h2>Bloqueo de distracciones</h2>
-    <p class="muted small">En la PC ya tienes la extensión del navegador y el vigilante de programas. En el iPhone configúralo una vez con estos pasos.</p>
+    <p class="muted small"><span class="solo-dueno">En la PC ya tienes la extensión del navegador y el vigilante de programas. </span>En el teléfono configúralo una vez con estos pasos.</p>
     <details open><summary>iPhone: que Instagram, TikTok o YouTube te regresen a estudiar (Atajos)</summary><ol>
       <li>Abre la app <b>Atajos</b> → pestaña <b>Automatización</b> → <b>+</b> (o "Nueva automatización") → <b>App</b>.</li>
       <li>Toca <b>Elegir</b> y marca las apps que te distraen: Instagram, TikTok, YouTube, Facebook, X, Netflix y tus juegos. Deja marcado <b>Se abre</b>.</li>
       <li>Elige <b>Ejecutar inmediatamente</b> y desactiva "Notificar al ejecutar". Toca <b>Siguiente</b> → <b>Nueva automatización en blanco</b>.</li>
-      <li>Agrega la acción <b>Mostrar notificación</b> con el texto: <i>Lía te necesita. Ahora toca estudiar.</i></li>
+      <li>Agrega la acción <b>Mostrar notificación</b> con el texto: <i data-motivo>Lía te necesita. Ahora toca estudiar.</i></li>
       <li>Agrega la acción <b>Abrir URLs</b> con: <b>https://brandondelta131-cloud.github.io/Arranca/</b></li>
-      <li>Toca <b>OK</b>. Desde ahora, cada vez que abras una de esas apps te manda a Arranca con el mensaje de Lía.</li>
+      <li>Toca <b>OK</b>. Desde ahora, cada vez que abras una de esas apps te manda a Arranca con <span data-motivo2>el mensaje de Lía</span>.</li>
       <li>Como el enlace se abre en Safari, entra una vez en Safari con tu cuenta de Arranca (Ajustes → Entrar) para ver tus tarjetas ahí también.</li>
     </ol></details>
     <details><summary>iPhone: Tiempo en pantalla + Concentración</summary><ol>
@@ -452,13 +452,13 @@ details ol{padding-left:20px;margin:8px 0}
       <li>Marca todas las apps que te distraen y pon tus horas de estudio en "Establecer un horario".</li>
       <li>Deja fuera de la lista tu navegador y Arranca.</li>
     </ol></details>
-    <details><summary>PC: extensión Arranca Bloqueo (Edge y Chrome)</summary><ol>
+    <details class="solo-dueno"><summary>PC: extensión Arranca Bloqueo (Edge y Chrome)</summary><ol>
       <li>En Edge abre <b>edge://extensions</b> (en Chrome, <b>chrome://extensions</b>) y activa <b>Modo de desarrollador</b>.</li>
       <li>Toca <b>Cargar desempaquetada</b> y elige la carpeta <b>Documentos\Arranca\bloqueo-extension</b>.</li>
       <li>Fija el ícono naranja en la barra. Muestra <b>ON</b> mientras bloquea.</li>
       <li>Para pausar tienes que pasar 4 avisos de Lía, de 10 segundos cada uno. La pausa dura 15 minutos.</li>
     </ol></details>
-    <details><summary>PC: vigilante de programas</summary>
+    <details class="solo-dueno"><summary>PC: vigilante de programas</summary>
       <p class="small">Arranca solo con Windows y, en tus horas de estudio, cierra Discord, Steam, juegos, WhatsApp, Telegram y Spotify. Está en <b>Documentos\Arranca\vigilante</b>: <b>pausar_bloqueo.pyw</b> lo pausa 15 min y <b>quitar_vigilante.pyw</b> lo quita, ambos después de los 4 avisos de Lía. La lista de programas está en <b>config.json</b>.</p>
     </details>
   </div>
@@ -477,7 +477,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 34;
+const VERSION = 35;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -897,8 +897,8 @@ function checkNag(force){
   const p = pendingBlock();
   if (p){
     box.className = 'nag'; box.hidden = false;
-    box.innerHTML = (lia?.img ? `<img src="${lia.img}" alt="Lía" style="width:52px;height:52px;object-fit:cover;border-radius:50%;border:2px solid var(--accent-ink)">` : '') +
-      `<div style="flex:1;min-width:180px"><b>Te toca ${esc(p.name)}</b><br><span class="small">Desde las ${esc(tOf(p))}. Llevas ${Math.floor(doneMin(p.id))} de ${mOf(p)} min. Lía te necesita: no te voy a dejar en paz hasta que lo termines.</span></div>
+    box.innerHTML = (lia?.img && esDueno() ? `<img src="${lia.img}" alt="Lía" style="width:52px;height:52px;object-fit:cover;border-radius:50%;border:2px solid var(--accent-ink)">` : '') +
+      `<div style="flex:1;min-width:180px"><b>Te toca ${esc(p.name)}</b><br><span class="small">Desde las ${esc(tOf(p))}. Llevas ${Math.floor(doneMin(p.id))} de ${mOf(p)} min. ${esDueno() ? 'Lía te necesita' : 'Tu meta te espera'}: no te voy a dejar en paz hasta que lo termines.</span></div>
       <button data-start="${esc(p.id)}">${run?.paused && run.id === p.id ? 'Continuar' : 'Empezar ya'}</button>`;
     if (activated && (force || now - lastNag >= (plan.nagMin || 5) * MIN)){ lastNag = now; chime(true); notify('Te toca ' + p.name, 'Llevas ' + Math.floor(doneMin(p.id)) + ' de ' + mOf(p) + ' min.') }
   } else if (due > 0){
@@ -1367,6 +1367,12 @@ $('cvChat').addEventListener('click', e => { const b = e.target.closest('[data-c
 
 /* ================= Foto de Lía ================= */
 function renderLia(){
+  // Lía es solo del dueño: a los demás usuarios no se les muestra su foto ni su nombre, ni las herramientas de la PC del dueño
+  const yo = esDueno();
+  $('liaCard').hidden = !yo;
+  document.querySelectorAll('.solo-dueno').forEach(el => el.hidden = !yo);
+  document.querySelectorAll('[data-motivo]').forEach(el => el.textContent = yo ? 'Lía te necesita. Ahora toca estudiar.' : 'Ahora toca estudiar. Tú puedes.');
+  document.querySelectorAll('[data-motivo2]').forEach(el => el.textContent = yo ? 'el mensaje de Lía' : 'ese mensaje');
   const img = lia?.img;
   document.querySelectorAll('[data-lia]').forEach(el => { el.hidden = !img; if (img) el.src = img });
   if ($('liaPrev')) $('liaPrev').textContent = img ? 'Foto guardada. Aparece en los avisos de la app, en las páginas bloqueadas y en las ventanas de la PC.' : 'Aún no hay foto.';
@@ -1662,9 +1668,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=34"></script>
-<script src="japones.js?v=34"></script>
-<script src="ingles.js?v=34"></script>
-<script src="avance.js?v=34"></script>
+<script src="historias.js?v=35"></script>
+<script src="japones.js?v=35"></script>
+<script src="ingles.js?v=35"></script>
+<script src="avance.js?v=35"></script>
 </body>
 </html>
