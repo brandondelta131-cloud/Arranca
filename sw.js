@@ -1,6 +1,6 @@
 // Guarda la app para que abra sin internet. Sube CACHE cuando cambie index.html.
-const CACHE = 'arranca-v35';
-const ASSETS = ['./', './index.html', './historias.js?v=35', './japones.js?v=35', './ingles.js?v=35', './avance.js?v=35', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+const CACHE = 'arranca-v36';
+const ASSETS = ['./', './index.html', './historias.js?v=36', './japones.js?v=36', './ingles.js?v=36', './avance.js?v=36', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'];
 
 self.addEventListener('install', e => {

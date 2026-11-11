@@ -346,11 +346,25 @@ fetch(`historias/indice.json?v=${VERSION}`).then(r => r.ok ? r.json() : null).th
 const enCache = {};
 let enNivelVista = null;     // null = mapa de niveles; 1..6 = historias del nivel; 'x' = las 8 de práctica
 let enMarcadas = [];         // palabras y frases que el alumno mandó a su Repaso en esta historia
+// Las historias están en Supabase (tabla arranca_historias): solo las entrega a quien tiene plan activo (o al dueño).
+// Cada nivel que bajas se guarda en el teléfono para estudiarlo sin internet; al cerrar sesión se borra.
 async function enCargarNivel(n){
   if (enCache[n]) return enCache[n];
-  const r = await fetch(`historias/en-nivel-${n}.json?v=${VERSION}`);
-  if (!r.ok) throw new Error('Este nivel todavía no está disponible.');
-  const d = await r.json();
+  const llave = `https://arranca.historias/v1/${n}`;
+  let guardadas = null; try { guardadas = await caches.open('arranca-historias') } catch(e){}
+  let d = null, sinPlan = false;
+  if (session && sb){
+    try {
+      const { data, error } = await sb.from('arranca_historias').select('datos').eq('nivel', n).maybeSingle();
+      if (error) throw error;
+      if (data){ d = data.datos; if (guardadas) guardadas.put(llave, new Response(JSON.stringify(d), {headers: {'Content-Type': 'application/json'}})).catch(() => {}) }
+      else sinPlan = true;
+    } catch(e){ /* sin internet: se usa la copia guardada */ }
+  }
+  if (!d && !sinPlan && guardadas){ const r = await guardadas.match(llave); if (r) d = await r.json() }
+  if (!d) throw new Error(!session ? 'Entra con tu cuenta en Ajustes para ver el curso.'
+    : sinPlan ? (esDueno() ? 'Este nivel todavía no está subido.' : 'Este nivel necesita un plan activo.')
+    : 'No pude cargar el nivel. Revisa tu internet.');
   d.historias.forEach(h => { h.nivel = d.cefr; h.nNivel = n });
   return (enCache[n] = d);
 }

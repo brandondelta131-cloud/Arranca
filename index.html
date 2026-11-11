@@ -477,7 +477,7 @@ details ol{padding-left:20px;margin:8px 0}
 </main>
 <script>
 /* ===== Configuración de Supabase (la clave "anon" es pública por diseño; la protección la dan las reglas RLS) ===== */
-const VERSION = 35;
+const VERSION = 36;
 const SUPABASE_URL = 'https://rbifgjizrqenzjtywubn.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ewYODAaisSYQntFopUyhyw_enltBHXw';
 
@@ -617,7 +617,13 @@ function renderAccount(){
       if (typeof renderAvance === 'function') renderAvance();
     };
     $('syncNow').onclick = () => sync();
-    $('logout').onclick = async () => { await sb.auth.signOut(); session = null; renderAccount(); setSync('', 'Guardado en este dispositivo.') };
+    $('logout').onclick = async () => {
+      await sb.auth.signOut(); session = null;
+      // Las historias del curso guardadas en este teléfono son de la cuenta: se borran al salir
+      try { await caches.delete('arranca-historias') } catch(e){}
+      if (typeof enCache === 'object') Object.keys(enCache).forEach(k => delete enCache[k]);
+      renderAccount(); setSync('', 'Guardado en este dispositivo.');
+    };
     return;
   }
   box.innerHTML = `<p class="muted small">Usa el mismo correo y contraseña en la PC y en el teléfono.</p>
@@ -1668,9 +1674,9 @@ window.addEventListener('pagehide', () => { if (run){ tickRun(); try { localStor
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 localLoad(); renderAll(); initSync(); goTab('hoy');
 </script>
-<script src="historias.js?v=35"></script>
-<script src="japones.js?v=35"></script>
-<script src="ingles.js?v=35"></script>
-<script src="avance.js?v=35"></script>
+<script src="historias.js?v=36"></script>
+<script src="japones.js?v=36"></script>
+<script src="ingles.js?v=36"></script>
+<script src="avance.js?v=36"></script>
 </body>
 </html>
